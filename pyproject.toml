@@ -1,0 +1,114 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "eventlog-pro"
+dynamic = ["version"]
+description = "A tiny, dependency-free structured event log — pure Python (SQLite/PostgreSQL/MySQL/JSONL) or Django, one API, one table shape."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Gal Sarig", email = "dev@peltransport.com" }]
+keywords = ["eventlog", "audit", "logging", "django", "sqlite", "postgresql", "mysql"]
+# The base install is pure stdlib. This list must stay empty — see .claude/plans/001.
+dependencies = []
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Framework :: Django",
+    "Framework :: Django :: 4.2",
+    "Framework :: Django :: 5.0",
+    "Framework :: Django :: 5.1",
+    "Framework :: Django :: 5.2",
+    "Topic :: Database",
+    "Topic :: System :: Logging",
+    "Typing :: Typed",
+]
+
+[project.optional-dependencies]
+django = ["Django>=4.2"]
+postgres = ["psycopg[binary]>=3.1"]
+mysql = ["PyMySQL>=1.1"]
+all = ["eventlog-pro[django,postgres,mysql]"]
+dev = [
+    "eventlog-pro[all]",
+    "pytest>=8",
+    "pytest-django>=4.8",
+    "pytest-cov",
+    "ruff",
+    "mypy",
+    "build",
+    "twine",
+]
+
+[project.urls]
+Homepage = "https://github.com/latingate/eventlog-pro"
+Source = "https://github.com/latingate/eventlog-pro"
+Issues = "https://github.com/latingate/eventlog-pro/issues"
+Changelog = "https://github.com/latingate/eventlog-pro/blob/main/CHANGELOG.md"
+
+[tool.hatch.version]
+path = "src/eventlog_pro/__about__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/eventlog_pro"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/eventlog_pro", "tests", "README.md", "CHANGELOG.md", "LICENSE"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+# `tests/` on the path so django_settings.py and urls.py are importable.
+pythonpath = ["tests"]
+# pytest-django needs this before conftest import time. The core-only job has no
+# pytest-django, where it is an unknown-but-harmless option, hence the filter.
+DJANGO_SETTINGS_MODULE = "django_settings"
+filterwarnings = ["ignore:Unknown config option. DJANGO_SETTINGS_MODULE:pytest.PytestConfigWarning"]
+markers = ["integration: needs a real PostgreSQL or MySQL server (see the DSN env vars)"]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+# Ruff also formats Python inside Markdown fences; documentation examples are
+# laid out for reading, not for the formatter.
+extend-exclude = [".claude", "*.md"]
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "C4", "SIM", "RUF"]
+# RUF022: `__all__` is ordered to match the documented public API, not sorted.
+ignore = ["B008", "RUF022"]
+
+[tool.ruff.lint.isort]
+# `contrib/django/` otherwise makes ruff read `django` as a local package.
+known-third-party = ["django"]
+
+[tool.ruff.lint.per-file-ignores]
+# Django class-level `indexes`, `widgets`, `operations` and `dependencies` are
+# the framework's own idiom; ClassVar-annotating them would break Django.
+"src/eventlog_pro/contrib/django/**" = ["RUF012"]
+"src/eventlog_pro/contrib/django/migrations/*" = ["E501", "RUF012"]
+
+[tool.mypy]
+files = ["src/eventlog_pro"]
+python_version = "3.10"
+strict = true
+warn_unused_ignores = true
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# Django ships no type information and django-stubs is not a dependency, so
+# every Django base class and decorator is `Any` here. Strictness stays on for
+# the pure-Python core, which is where it earns its keep.
+module = ["eventlog_pro.contrib.django.*"]
+disallow_untyped_defs = false
+disable_error_code = ["misc", "no-any-return", "untyped-decorator"]
