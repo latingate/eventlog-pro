@@ -22,14 +22,14 @@ database can be read by either.
 
 Decisions already made: one package with extras (not two packages, not runtime autodetect);
 URL/DSN-driven pluggable backends; new standalone directory
-`C:\Users\gal20\PycharmProjects\eventlog-pro`, with **no changes to pel-automation** as part of this
+`C:\Users\gal\PycharmProjects\eventlog-pro`, with **no changes to pel-automation** as part of this
 work beyond the two documentation files below.
 
 ## Deliverables
 
-1. A new, self-contained repo at `C:\Users\gal20\PycharmProjects\eventlog-pro`.
-2. `C:\Users\gal20\PycharmProjects\pel-automation\.docs\eventlog_readme.md` — package reference.
-3. `C:\Users\gal20\PycharmProjects\pel-automation\.docs\eventlog_setup.md` — install & setup guide.
+1. A new, self-contained repo at `C:\Users\gal\PycharmProjects\eventlog-pro`.
+2. `C:\Users\gal\PycharmProjects\pel-automation\.docs\eventlog_readme.md` — package reference.
+3. `C:\Users\gal\PycharmProjects\pel-automation\.docs\eventlog_setup.md` — install & setup guide.
 
 Nothing under `pel-automation\eventlog\`, `pel\`, `pel_automation\` or `_checks\` is touched.
 
@@ -491,8 +491,8 @@ python -m zipfile -l dist/*.whl | Select-String "migrations|py.typed"
 Clean-venv smoke test, base install only (proves zero-dependency mode and no accidental imports):
 
 ```powershell
-python -m venv C:\Users\gal20\AppData\Local\Temp\evp ; C:\Users\gal20\AppData\Local\Temp\evp\Scripts\pip install .\dist\eventlog_pro-0.1.0-py3-none-any.whl
-C:\Users\gal20\AppData\Local\Temp\evp\Scripts\python -c "import sys, eventlog_pro; assert 'django' not in sys.modules and 'psycopg' not in sys.modules; e = eventlog_pro.log_event(app='t', category='t', event_code='OK'); print(e.id)"
+python -m venv C:\Users\gal\AppData\Local\Temp\evp ; C:\Users\gal\AppData\Local\Temp\evp\Scripts\pip install .\dist\eventlog_pro-0.1.0-py3-none-any.whl
+C:\Users\gal\AppData\Local\Temp\evp\Scripts\python -c "import sys, eventlog_pro; assert 'django' not in sys.modules and 'psycopg' not in sys.modules; e = eventlog_pro.log_event(app='t', category='t', event_code='OK'); print(e.id)"
 ```
 
 Django-mode end-to-end (a throwaway project, **not** pel-automation): `[django]` extra installed,
