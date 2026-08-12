@@ -1,8 +1,12 @@
 # Extract `eventlog` into the `eventlog-pro` PyPI package
 
-Status: draft
+Status: done
 Owner: Gal Sarig
-Last updated: 12-08-2026
+Last updated: 2026-08-12
+
+Executed in full. Remaining work — publishing 0.1.0 and the pel-automation
+cutover, both listed under "Optional follow-up" below — is tracked in
+[002-2026-08-12-remaining-work-and-decisions.md](002-2026-08-12-remaining-work-and-decisions.md).
 
 ## Open Questions
 
