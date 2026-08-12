@@ -1,5 +1,13 @@
 # Extract `eventlog` into the `eventlog-pro` PyPI package
 
+Status: draft
+Owner: Gal Sarig
+Last updated: 12-08-2026
+
+## Open Questions
+
+_None._
+
 ## Context
 
 `eventlog/` in pel-automation is a self-contained Django app: one model (`EventLog`, 12 columns), one
@@ -21,17 +29,20 @@ Both modes expose the **same `log_event()` signature** and write the **same tabl
 database can be read by either.
 
 Decisions already made: one package with extras (not two packages, not runtime autodetect);
-URL/DSN-driven pluggable backends; new standalone directory
-`C:\Users\gal20\PycharmProjects\eventlog-pro`, with **no changes to pel-automation** as part of this
-work beyond the two documentation files below.
+URL/DSN-driven pluggable backends; a new standalone repository, `eventlog-pro/`, checked out as a
+sibling of `pel-automation/`, with **no changes to pel-automation** as part of this work beyond the
+two documentation files below.
+
+Paths below are repository-relative: unprefixed paths are inside this repo (`eventlog-pro/`), and
+paths prefixed `pel-automation/` are inside the sibling repo.
 
 ## Deliverables
 
-1. A new, self-contained repo at `C:\Users\gal20\PycharmProjects\eventlog-pro`.
-2. `C:\Users\gal20\PycharmProjects\pel-automation\.docs\eventlog_readme.md` — package reference.
-3. `C:\Users\gal20\PycharmProjects\pel-automation\.docs\eventlog_setup.md` — install & setup guide.
+1. A new, self-contained repo — `eventlog-pro/`, this repository.
+2. `pel-automation/.docs/eventlog_readme.md` — package reference.
+3. `pel-automation/.docs/eventlog_setup.md` — install & setup guide.
 
-Nothing under `pel-automation\eventlog\`, `pel\`, `pel_automation\` or `_checks\` is touched.
+Nothing under `pel-automation/eventlog/`, `pel/`, `pel_automation/` or `_checks/` is touched.
 
 ---
 
@@ -106,7 +117,7 @@ Plus `Framework :: Django :: 4.2/5.0/5.1/5.2` and `Typing :: Typed` classifiers,
 ### `Event` and the schema
 
 `@dataclass(slots=True) Event` mirrors the 12 columns of
-`pel-automation\eventlog\models.py` exactly, plus `id: int | None`. Column order is defined **once**
+`pel-automation/eventlog/models.py` exactly, plus `id: int | None`. Column order is defined **once**
 in `schema.py` as `COLUMNS = (created_at, created_by, app, category, sub_category, event_code,
 event_type, entity_app, entity_model, entity_id, remarks, data)` — matching the Django model's
 declaration order — and every backend builds its INSERT from that tuple. One list, no drift.
@@ -318,7 +329,7 @@ dataclass. Both expose `.id`, `.app`, `.event_code`, `.data`, `.created_at`.
 
 ### Admin
 
-Ported from `pel-automation\eventlog\admin.py` essentially as-is — `EventLogAdminForm` with the
+Ported from `pel-automation/eventlog/admin.py` essentially as-is — `EventLogAdminForm` with the
 `remarks` Textarea, all `list_display`/`list_filter`/`fieldsets`, `ordering = ("-created_at",)`,
 `date_hierarchy`, `pretty_data` JSON `<pre>`, and `entity_admin_link` reversing
 `admin:{entity_app}_{entity_model}_change` guarded by `NoReverseMatch`. Changes:
@@ -414,7 +425,7 @@ GitHub trusted publisher (repo `eventlog-pro`, workflow `publish.yml`, environme
 
 ## Part 9 — The two documentation files
 
-Both are written into `pel-automation\.docs\` and describe the package as an external dependency.
+Both are written into `pel-automation/.docs/` and describe the package as an external dependency.
 
 ### `.docs/eventlog_readme.md` — package reference
 
@@ -460,20 +471,22 @@ needing `--fake-initial`, stray `events.db`, admin section missing, "Admin page 
 
 Listed only so the work is scoped. Nothing here is executed now; pel-automation is left untouched.
 
-1. `requirements.txt` — add `eventlog-pro[django]~=0.1.0`.
-2. `pel_automation\settings.py:199` — `'eventlog.apps.EventlogConfig'` → `'eventlog_pro.contrib.django'`.
-3. `pel\views.py:50` (and `views_20260809.py:50`) — import from `eventlog_pro`. Consider switching
+1. `pel-automation/requirements.txt` — add `eventlog-pro[django]~=0.1.0`.
+2. `pel-automation/pel_automation/settings.py:199` — `'eventlog.apps.EventlogConfig'` →
+   `'eventlog_pro.contrib.django'`.
+3. `pel-automation/pel/views.py:50` (and `views_20260809.py:50`) — import from `eventlog_pro`. Consider switching
    the 16 `_zoho_log` call sites to `log_event_safe` — the main behavioural win, since `_zoho_log`
    sits on the Zoho webhook hot path with no exception guard today.
-4. `_checks\third_party_imports.py:15` — drop `"eventlog"` from `LOCAL`.
-5. `_checks\file_list_diff.py:24` — drop `"eventlog/"` from `KEEP_PREFIXES`.
-6. Delete `eventlog/` — only after the above is green in staging.
+4. `pel-automation/_checks/third_party_imports.py:15` — drop `"eventlog"` from `LOCAL`.
+5. `pel-automation/_checks/file_list_diff.py:24` — drop `"eventlog/"` from `KEEP_PREFIXES`.
+6. Delete `pel-automation/eventlog/` — only after the above is green in staging.
 7. **Rehearse the fake-migration against a copy of the production Postgres DB.** `--fake-initial`
    matches on table existence only, not columns, so drift would fake successfully and leave a broken
    model; and the three new indexes take a lock proportional to table size (use
-   `CREATE INDEX CONCURRENTLY` by hand if large). Note `settings.py:273-282` swaps to SQLite when
-   `"test" in sys.argv`, so `manage.py test` will never exercise the real migration path.
-8. Update the app tables in `README.md:41` and `CLAUDE.md:15,98`.
+   `CREATE INDEX CONCURRENTLY` by hand if large). Note `pel-automation/pel_automation/settings.py:273-282`
+   swaps to SQLite when `"test" in sys.argv`, so `manage.py test` will never exercise the real
+   migration path.
+8. Update the app tables in `pel-automation/README.md:41` and `pel-automation/CLAUDE.md:15,98`.
 
 ## Verification
 
@@ -491,8 +504,8 @@ python -m zipfile -l dist/*.whl | Select-String "migrations|py.typed"
 Clean-venv smoke test, base install only (proves zero-dependency mode and no accidental imports):
 
 ```powershell
-python -m venv C:\Users\gal20\AppData\Local\Temp\evp ; C:\Users\gal20\AppData\Local\Temp\evp\Scripts\pip install .\dist\eventlog_pro-0.1.0-py3-none-any.whl
-C:\Users\gal20\AppData\Local\Temp\evp\Scripts\python -c "import sys, eventlog_pro; assert 'django' not in sys.modules and 'psycopg' not in sys.modules; e = eventlog_pro.log_event(app='t', category='t', event_code='OK'); print(e.id)"
+python -m venv $env:TEMP\evp ; & "$env:TEMP\evp\Scripts\pip" install .\dist\eventlog_pro-0.1.0-py3-none-any.whl
+& "$env:TEMP\evp\Scripts\python" -c "import sys, eventlog_pro; assert 'django' not in sys.modules and 'psycopg' not in sys.modules; e = eventlog_pro.log_event(app='t', category='t', event_code='OK'); print(e.id)"
 ```
 
 Django-mode end-to-end (a throwaway project, **not** pel-automation): `[django]` extra installed,
