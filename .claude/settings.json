@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "additionalDirectories": [
+      "C:\\Users\\gal\\PycharmProjects\\pel-automation"
+    ],
+    "allow": [
+      "Read(//C/Users/gal/PycharmProjects/pel-automation/**)"
+    ]
+  }
+}

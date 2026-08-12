@@ -1,0 +1,40 @@
+# === Virtual environments ===
+.venv/
+venv/
+ENV/
+
+# === Build artifacts ===
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# === Python bytecode & caches ===
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+coverage.xml
+
+# === Local event stores produced by tests / demos ===
+*.db
+events.db
+*.jsonl
+
+# === IDE settings ===
+.idea/
+.idea/workspace.xml
+.idea/tasks.xml
+.vscode/
+*.iml
+
+# === Environment files ===
+.env
+
+# === OS-specific ===
+.DS_Store
+Thumbs.db
