@@ -1,0 +1,194 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_COLOR: "1"
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+
+jobs:
+  core:
+    # The base install, with nothing optional. Proves the package works with
+    # zero dependencies and that the Django tests skip themselves cleanly.
+    name: core / py${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install the base package only
+        run: |
+          python -m pip install .
+          python -m pip install pytest
+      - name: Assert no optional dependency was pulled in
+        run: |
+          python - <<'PY'
+          import importlib.util, sys
+          for name in ("django", "psycopg", "psycopg2", "pymysql", "MySQLdb"):
+              assert importlib.util.find_spec(name) is None, f"{name} should not be installed"
+          import eventlog_pro
+          leaked = {"django", "psycopg", "pymysql"} & set(sys.modules)
+          assert not leaked, leaked
+          print("base install is clean:", eventlog_pro.__version__)
+          PY
+      - run: pytest
+
+  django:
+    name: django ${{ matrix.django-version }} / py${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.12", "3.13"]
+        django-version: ["4.2", "5.2"]
+        exclude:
+          # Django 4.2 does not support Python 3.13.
+          - python-version: "3.13"
+            django-version: "4.2"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install with the dev extra
+        run: python -m pip install ".[dev]"
+      - name: Pin Django ${{ matrix.django-version }}
+        run: python -m pip install "Django~=${{ matrix.django-version }}.0"
+      - run: pytest
+
+  postgres:
+    name: integration / postgresql
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: secret
+          POSTGRES_DB: evp
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install ".[dev]"
+      - run: pytest tests/test_backend_postgres.py -v
+        env:
+          EVENTLOG_TEST_POSTGRES_DSN: postgresql://postgres:secret@localhost:5432/evp
+
+  mysql:
+    name: integration / mysql
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_ROOT_PASSWORD: secret
+          MYSQL_DATABASE: evp
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -psecret"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install ".[dev]"
+      - run: pytest tests/test_backend_mysql.py -v
+        env:
+          EVENTLOG_TEST_MYSQL_DSN: mysql://root:secret@127.0.0.1:3306/evp
+
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install ".[dev]"
+      - run: ruff check .
+      - run: ruff format --check .
+      - run: mypy
+      - name: No implicit namespace packages under src/
+        # eventlog/utils/ in the source app had no __init__.py and survived only
+        # on PEP 420, which breaks find_packages(), mypy and frozen bundling.
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          root = Path("src/eventlog_pro")
+          missing = [
+              str(d) for d in root.rglob("*")
+              if d.is_dir() and d.name != "__pycache__" and not (d / "__init__.py").is_file()
+          ]
+          assert not missing, f"missing __init__.py: {missing}"
+          print("every package directory has an __init__.py")
+          PY
+
+  package:
+    name: package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install build twine
+      - run: python -m build
+      - run: twine check dist/*
+      - name: Assert the wheel ships migrations and py.typed
+        # A Django app whose migrations missed the wheel installs fine and then
+        # fails at `migrate` in the user's production deploy.
+        run: |
+          python - <<'PY'
+          import zipfile, glob
+          names = zipfile.ZipFile(glob.glob("dist/*.whl")[0]).namelist()
+          required = [
+              "eventlog_pro/py.typed",
+              "eventlog_pro/contrib/django/migrations/__init__.py",
+              "eventlog_pro/contrib/django/migrations/0001_initial.py",
+              "eventlog_pro/contrib/django/migrations/0002_add_indexes.py",
+          ]
+          missing = [name for name in required if name not in names]
+          assert not missing, f"missing from the wheel: {missing}"
+          print("\n".join(sorted(n for n in names if "migrations" in n or "py.typed" in n)))
+          PY
+      - name: Smoke-test the wheel in a clean environment
+        run: |
+          python -m venv /tmp/smoke
+          /tmp/smoke/bin/pip install dist/*.whl
+          /tmp/smoke/bin/python - <<'PY'
+          import sys, tempfile, pathlib, sqlite3, eventlog_pro
+          assert not {"django", "psycopg", "pymysql"} & set(sys.modules)
+          path = pathlib.Path(tempfile.mkdtemp()) / "events.db"
+          eventlog_pro.configure(dsn=f"sqlite:///{path.as_posix()}")
+          event = eventlog_pro.log_event(app="smoke", category="ci", event_code="OK")
+          (row,) = sqlite3.connect(path).execute("SELECT event_code FROM eventlog_eventlog")
+          assert event.id == 1 and row[0] == "OK"
+          print("wheel smoke test passed")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
