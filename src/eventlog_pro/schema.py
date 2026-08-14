@@ -11,14 +11,19 @@ each other's rows. ``tests/test_schema_parity.py`` enforces that promise.
 from __future__ import annotations
 
 import hashlib
+import json
 from datetime import datetime, timezone
-from typing import Final
+from typing import TYPE_CHECKING, Any, Final
 
-from .exceptions import ConfigurationError
+from .exceptions import BackendError, ConfigurationError
+
+if TYPE_CHECKING:  # pragma: no cover
+    from .criteria import Criteria
 
 __all__ = [
     "COLUMNS",
     "CHAR_COLUMNS",
+    "SELECT_COLUMNS",
     "MAX_CHARFIELD_LENGTH",
     "DEFAULT_TABLE",
     "DIALECTS",
@@ -31,7 +36,16 @@ __all__ = [
     "create_table_sql",
     "index_statements",
     "insert_sql",
+    "select_sql",
+    "select_ids_sql",
+    "delete_sql",
+    "delete_by_ids_sql",
+    "where_clause",
+    "order_clause",
+    "like_pattern",
     "to_db_datetime",
+    "from_db_datetime",
+    "from_db_data",
 ]
 
 #: Column order, matching the declaration order of the Django model.
@@ -49,6 +63,9 @@ COLUMNS: Final[tuple[str, ...]] = (
     "remarks",
     "data",
 )
+
+#: Column order for reads: the stored columns, with ``id`` in front.
+SELECT_COLUMNS: Final[tuple[str, ...]] = ("id", *COLUMNS)
 
 #: The ``varchar(100)`` columns. Values are truncated to fit, never rejected.
 CHAR_COLUMNS: Final[tuple[str, ...]] = (
@@ -247,6 +264,153 @@ def insert_sql(dialect: str, table: str = DEFAULT_TABLE) -> str:
     return sql
 
 
+def like_pattern(value: str) -> str:
+    """Wrap *value* in ``%`` wildcards, escaping the ones it contains itself.
+
+    Backslash first, or the escapes introduced for ``%`` and ``_`` would
+    themselves be escaped. Backslash is the escape character on every dialect
+    here — see :func:`_contains_clause` for how each one is told so.
+    """
+    escaped = value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return f"%{escaped}%"
+
+
+def _contains_clause(column: str, dialect: str) -> str:
+    """``LIKE`` against *column* rendered as text.
+
+    PostgreSQL's ``jsonb`` and MySQL's ``json`` are not text and will not
+    compare to one; SQLite's is already ``text``. The cast is what makes one
+    substring filter mean roughly the same thing on all three.
+
+    **MySQL gets no ``ESCAPE`` clause.** Backslash is already its default
+    ``LIKE`` escape character, and spelling it out is a trap: MySQL treats
+    backslash as an escape *inside string literals* too, so the literal
+    ``'\\'`` reads as an escaped quote and the statement dies with a 1064
+    syntax error. Writing ``'\\\\'`` instead would fix that but break under
+    ``NO_BACKSLASH_ESCAPES``, where it means two characters and ``ESCAPE``
+    demands one. Omitting the clause is correct in both modes.
+    """
+    d = normalize_dialect(dialect)
+    q = quote_identifier
+    if d == "postgresql":
+        target = f"{q(column, d)}::text"
+    elif d == "mysql" and column == "data":
+        target = f"CAST({q(column, d)} AS CHAR)"
+    else:
+        target = q(column, d)
+    clause = f"{target} LIKE {placeholder(d)}"
+    return clause if d == "mysql" else f"{clause} ESCAPE '\\'"
+
+
+def where_clause(dialect: str, criteria: Criteria) -> tuple[str, tuple[Any, ...]]:
+    """The ``WHERE`` clause for *criteria*, plus the values to bind.
+
+    Returns ``("", ())`` when nothing is filtered. Every value is bound;
+    the only strings interpolated are column names, all of which came from
+    :data:`SELECT_COLUMNS` by way of ``criteria``.
+    """
+    d = normalize_dialect(dialect)
+    q = quote_identifier
+    parts: list[str] = []
+    params: list[Any] = []
+
+    for column, value in criteria.equals:
+        parts.append(f"{q(column, d)} = {placeholder(d)}")
+        params.append(value)
+
+    for column, needle in criteria.contains:
+        parts.append(_contains_clause(column, d))
+        params.append(like_pattern(needle))
+
+    if criteria.created_from is not None:
+        parts.append(f"{q('created_at', d)} >= {placeholder(d)}")
+        params.append(to_db_datetime(criteria.created_from, d))
+
+    if criteria.created_to is not None:
+        parts.append(f"{q('created_at', d)} {criteria.created_to_op} {placeholder(d)}")
+        params.append(to_db_datetime(criteria.created_to, d))
+
+    if not parts:
+        return ("", ())
+    return (" WHERE " + " AND ".join(parts), tuple(params))
+
+
+def order_clause(dialect: str, order_by: tuple[tuple[str, str], ...]) -> str:
+    """The ``ORDER BY`` clause, or ``""`` when there is nothing to order by."""
+    if not order_by:
+        return ""
+    d = normalize_dialect(dialect)
+    q = quote_identifier
+    terms = ", ".join(f"{q(name, d)} {direction}" for name, direction in order_by)
+    return f" ORDER BY {terms}"
+
+
+def _limit_clause(limit: int | None) -> str:
+    """``LIMIT n``, with *n* interpolated rather than bound.
+
+    Binding it would be portable too, but the three drivers disagree about
+    placeholders in ``LIMIT``, and the value is an ``int`` that
+    ``build_criteria`` has already validated — there is no string to inject.
+    """
+    return "" if limit is None else f" LIMIT {int(limit)}"
+
+
+def select_sql(
+    dialect: str, table: str = DEFAULT_TABLE, criteria: Criteria | None = None
+) -> tuple[str, tuple[Any, ...]]:
+    """``SELECT`` every column of every matching row."""
+    d = normalize_dialect(dialect)
+    table = validate_table_name(table)
+    q = quote_identifier
+    columns = ", ".join(q(c, d) for c in SELECT_COLUMNS)
+    if criteria is None:
+        return (f"SELECT {columns} FROM {q(table, d)}", ())
+    where, params = where_clause(d, criteria)
+    sql = (
+        f"SELECT {columns} FROM {q(table, d)}"
+        f"{where}{order_clause(d, criteria.order_by)}{_limit_clause(criteria.limit)}"
+    )
+    return (sql, params)
+
+
+def select_ids_sql(dialect: str, table: str, criteria: Criteria) -> tuple[str, tuple[Any, ...]]:
+    """``SELECT id`` for a limited delete — step one of the two-statement form."""
+    d = normalize_dialect(dialect)
+    table = validate_table_name(table)
+    q = quote_identifier
+    where, params = where_clause(d, criteria)
+    sql = (
+        f"SELECT {q('id', d)} FROM {q(table, d)}"
+        f"{where}{order_clause(d, criteria.order_by)}{_limit_clause(criteria.limit)}"
+    )
+    return (sql, params)
+
+
+def delete_sql(dialect: str, table: str, criteria: Criteria) -> tuple[str, tuple[Any, ...]]:
+    """``DELETE`` every matching row.
+
+    No ``LIMIT``: PostgreSQL has no ``DELETE ... LIMIT`` at all and SQLite is
+    normally compiled without it, so a limited delete goes through
+    :func:`select_ids_sql` and :func:`delete_by_ids_sql` instead.
+    """
+    d = normalize_dialect(dialect)
+    table = validate_table_name(table)
+    where, params = where_clause(d, criteria)
+    return (f"DELETE FROM {quote_identifier(table, d)}{where}", params)
+
+
+def delete_by_ids_sql(
+    dialect: str, table: str, ids: tuple[Any, ...]
+) -> tuple[str, tuple[Any, ...]]:
+    """``DELETE ... WHERE id IN (…)`` — step two of the two-statement form."""
+    d = normalize_dialect(dialect)
+    table = validate_table_name(table)
+    q = quote_identifier
+    placeholders = ", ".join(placeholder(d) for _ in ids)
+    sql = f"DELETE FROM {q(table, d)} WHERE {q('id', d)} IN ({placeholders})"
+    return (sql, tuple(ids))
+
+
 def to_db_datetime(value: datetime, dialect: str) -> datetime | str:
     """Render *value* the way Django's converters expect to read it back.
 
@@ -264,3 +428,50 @@ def to_db_datetime(value: datetime, dialect: str) -> datetime | str:
     if d == "mysql":
         return naive
     return naive.isoformat(sep=" ")
+
+
+def from_db_datetime(value: Any, dialect: str) -> datetime:
+    """Read back what :func:`to_db_datetime` wrote, always tz-aware UTC.
+
+    Deliberately more forgiving than that function is strict: rows in an
+    adopted table may have been written by Django rather than by this package,
+    so a ``T`` separator, a missing microsecond component and a trailing ``Z``
+    all have to parse. Anything already aware is just converted.
+    """
+    if isinstance(value, datetime):
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)
+    if isinstance(value, str):
+        text = value.strip()
+        if text.endswith(("Z", "z")):
+            # 3.10's fromisoformat does not accept the military-time suffix.
+            text = f"{text[:-1]}+00:00"
+        try:
+            parsed = datetime.fromisoformat(text)
+        except ValueError as exc:
+            raise BackendError(
+                f"Could not read created_at {value!r} from the {dialect} store."
+            ) from exc
+        return parsed.replace(tzinfo=timezone.utc) if parsed.tzinfo is None else parsed
+    raise BackendError(
+        f"Could not read created_at {value!r} ({type(value).__name__}) from the {dialect} store."
+    )
+
+
+def from_db_data(value: Any) -> Any:
+    """Read back the ``data`` column, which drivers hand over inconsistently.
+
+    ``jsonb``/``json`` columns arrive already decoded; SQLite's ``text`` one
+    arrives as a string. A string that is not valid JSON is returned as-is
+    rather than raised on — a row nobody can read is worse than a surprising
+    one, and this is a log.
+    """
+    if value is None:
+        return {}
+    if isinstance(value, (str, bytes, bytearray)):
+        try:
+            return json.loads(value)
+        except (ValueError, UnicodeDecodeError):
+            return value if isinstance(value, str) else value.decode("utf-8", "replace")
+    return value

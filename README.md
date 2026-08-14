@@ -190,6 +190,83 @@ Never raises. Logs the traceback to the `eventlog_pro` stdlib logger and returns
 
 `KeyboardInterrupt` and `SystemExit` are never swallowed, in either function.
 
+### `event_query(**filters) -> list[Event]`
+
+Reads events back, in any mode, without caring which backend is configured.
+**Raises** on failure — the kill switch below is a *write*-path switch, and a
+read that quietly returned `[]` would hide the problem instead of reporting it.
+
+```python
+from datetime import date
+from eventlog_pro import event_query
+
+event_query(app="api", event_code="RECEIVED")          # newest 100 first
+event_query(from_created_at=date(2026, 8, 1))          # everything this month
+event_query(data="INV-1234")                           # mentions this invoice
+event_query(order_by=["category", ("created_at", "DESC")], limit=None)
+```
+
+| Parameter | Type | Notes |
+|---|---|---|
+| `id` | `int \| None` | Exact primary key. |
+| `created_at` | `datetime \| date \| None` | A `datetime` matches that instant; a **`date` matches the whole UTC day**. Cannot be combined with the range arguments. |
+| `from_created_at` | `datetime \| date \| None` | Inclusive lower bound. A `date` means `00:00` that day. |
+| `to_created_at` | `datetime \| date \| None` | Upper bound, inclusive as a `datetime`; a **`date` means "through the end of that day"**. |
+| `created_by`, `app`, `category`, `sub_category`, `event_code`, `event_type`, `entity_app`, `entity_model`, `entity_id`, `remarks` | `str \| None` | Exact match. `None` is "not filtered"; `""` is a real filter matching the empty column. |
+| `data` | `str \| None` | **Substring, not equality** — see below. |
+| `order_by` | `str \| tuple \| sequence \| None` | `"category"`, `"-created_at"`, `("category", "ASC")`, or a sequence mixing those. Position is sort priority. Defaults to newest first. |
+| `limit` | `int \| None` | **Defaults to 100.** Pass `limit=None` for every match. |
+
+`data` is **the one argument that does not mean equality.** Byte-exact JSON
+comparison is useless in practice; finding the event that mentions an invoice
+number is not. So `data="INV-1234"` matches any row whose stored JSON contains
+that text, in a key or a value. Three things to know:
+
+- Passing a `dict` raises `TypeError` rather than matching nothing — `data=` is
+  a search string, so pass the value you are looking for, not the payload.
+- It is **case-sensitive on SQLite and PostgreSQL, case-insensitive on MySQL**,
+  whose default collation says so.
+- Single tokens behave the same on every backend; anything spanning JSON
+  punctuation does not, because PostgreSQL's `jsonb` reorders keys and
+  normalises whitespace on the way out. It is also an unindexed scan, so pair
+  it with `app=` or a date range on a large table.
+
+Results are always `Event` objects — in Django mode too, unlike `log_event()`,
+which returns the model instance.
+
+### `delete_events(**filters) -> int`
+
+Takes exactly the filters `event_query()` takes and returns how many rows went.
+Retention, in one line:
+
+```python
+from datetime import date, timedelta
+from eventlog_pro import delete_events
+
+delete_events(to_created_at=date.today() - timedelta(days=90))
+delete_events(to_created_at=date.today() - timedelta(days=90), limit=10_000)
+```
+
+**A bare `delete_events()` raises.** At least one real filter is required —
+`limit` and `order_by` do not count, because they choose *which* rows, not
+whether a row matches. An audit log that can empty itself by accident is a
+different product.
+
+**`event_query()` caps at 100 and this does not**, so the obvious
+check-then-delete pair compares a 100-row preview against an unbounded delete.
+To preview a delete exactly, pass the same arguments to both:
+
+```python
+doomed = event_query(to_created_at=cutoff, limit=None)   # limit=None matters
+assert delete_events(to_created_at=cutoff) == len(doomed)
+```
+
+With `limit` set, the **oldest** matching rows go first — the retention case —
+unless `order_by` says otherwise. That path runs two statements (select the ids,
+then delete them), because `DELETE ... LIMIT` is MySQL-only, so a row inserted
+between the two is not deleted. `jsonl://` is append-only and raises
+`BackendError`.
+
 ### Kill switch
 
 `configure(raise_on_error=False)` or `EVENTLOG_SILENT=1` makes `log_event()`
@@ -329,7 +406,15 @@ and fake `0002`.
   scan that no index helps. Set `ADMIN_SEARCH_DATA = False` past ~1M rows.
 - No pooling, no batching, no async in 0.1. One connection per thread, held
   open; point the DSN at pgbouncer, or use `django://`.
-- `jsonl://` leaves `id` as `None`.
+- `jsonl://` leaves `id` as `None`, and is read-only: `delete_events()` raises
+  rather than rewrite the file.
+- `event_query()` caps at 100 rows unless you pass `limit`, while
+  `delete_events()` never caps. Pass `limit=None` when using one to preview the
+  other.
+- A limited `delete_events()` is two statements, not one — a row inserted
+  between them is not deleted.
+- `data=` is a text scan that no index helps, and its case-sensitivity follows
+  the backend's collation.
 - Changing `TABLE` after the app has loaded does not move the table or generate
   a rename; the `eventlog_pro.W001` check reports the drift.
 

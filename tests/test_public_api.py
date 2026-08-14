@@ -14,6 +14,8 @@ def test_documented_names_are_exported():
     expected = {
         "log_event",
         "log_event_safe",
+        "event_query",
+        "delete_events",
         "configure",
         "get_settings",
         "reset",

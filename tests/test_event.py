@@ -86,3 +86,24 @@ def test_as_dict_includes_id():
 def test_str_reports_identity():
     event = Event(id=3, app="pel", category="webhook", event_code="OK")
     assert str(event) == "pk=3 | app=pel | category=webhook | event_code=OK"
+
+
+def test_from_row_inverts_values():
+    """`from_row` must undo exactly what `values` did, for the same dialect."""
+    original = Event(
+        id=7,
+        created_at=datetime(2026, 8, 12, 10, 0, 0, 123456, tzinfo=timezone.utc),
+        app="api",
+        category="webhook",
+        event_code="RECEIVED",
+        remarks="ok",
+        data={"n": 1},
+    )
+    row = (original.id, *original.values("sqlite"))
+    restored = Event.from_row(row, "sqlite")
+    assert restored == original
+
+
+def test_from_row_rejects_a_row_of_the_wrong_width():
+    with pytest.raises(ValueError, match="columns"):
+        Event.from_row((1, 2, 3), "sqlite")

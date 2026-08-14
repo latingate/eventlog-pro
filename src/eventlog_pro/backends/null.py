@@ -10,6 +10,7 @@ from __future__ import annotations
 import threading
 from typing import ClassVar
 
+from ..criteria import Criteria
 from ..event import Event
 from .base import Backend
 
@@ -31,3 +32,11 @@ class NullBackend(Backend):
         with self._lock:
             self.dropped += 1
         return event
+
+    def read(self, criteria: Criteria) -> list[Event]:
+        """Always empty — nothing was ever stored to find."""
+        return []
+
+    def delete(self, criteria: Criteria) -> int:
+        """Always ``0``. Nothing is stored, so nothing can be removed."""
+        return 0

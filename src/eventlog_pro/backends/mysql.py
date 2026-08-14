@@ -19,7 +19,7 @@ from typing import Any, ClassVar
 from ..event import Event
 from ..exceptions import BackendError, ConfigurationError
 from ..schema import insert_sql
-from .base import Backend, ThreadLocalConnectionMixin
+from .base import Backend, SQLReadDeleteMixin, ThreadLocalConnectionMixin
 
 __all__ = ["MySQLBackend"]
 
@@ -50,7 +50,7 @@ def _load_driver() -> tuple[Any, str]:
     )
 
 
-class MySQLBackend(ThreadLocalConnectionMixin, Backend):
+class MySQLBackend(SQLReadDeleteMixin, ThreadLocalConnectionMixin, Backend):
     """Writes events to MySQL or MariaDB, one held-open connection per thread."""
 
     schemes: ClassVar[tuple[str, ...]] = ("mysql", "mariadb")

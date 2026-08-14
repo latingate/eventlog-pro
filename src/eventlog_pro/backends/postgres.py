@@ -22,7 +22,7 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from ..event import Event
 from ..exceptions import BackendError, ConfigurationError
 from ..schema import insert_sql
-from .base import Backend, ThreadLocalConnectionMixin
+from .base import Backend, SQLReadDeleteMixin, ThreadLocalConnectionMixin
 
 __all__ = ["PostgresBackend"]
 
@@ -52,7 +52,7 @@ def _load_driver() -> tuple[Any, str]:
     )
 
 
-class PostgresBackend(ThreadLocalConnectionMixin, Backend):
+class PostgresBackend(SQLReadDeleteMixin, ThreadLocalConnectionMixin, Backend):
     """Writes events to PostgreSQL, one held-open connection per thread."""
 
     schemes: ClassVar[tuple[str, ...]] = ("postgres", "postgresql")

@@ -1,20 +1,30 @@
-"""The public write API: :func:`log_event` and :func:`log_event_safe`.
+"""The public API: :func:`log_event`, :func:`log_event_safe`,
+:func:`event_query` and :func:`delete_events`.
 
-The same two functions serve both modes; which store they reach is settled by
+The same functions serve both modes; which store they reach is settled by
 configuration, never by autodetection.
 """
 
 from __future__ import annotations
 
 import logging
+from datetime import date, datetime
 from typing import Any
 
 from .config import get_backend, get_settings
+from .criteria import UNSET, build_criteria
 from .entity import resolve_entity
 from .event import Event
+from .exceptions import ConfigurationError
 from .schema import MAX_CHARFIELD_LENGTH
 
-__all__ = ["log_event", "log_event_safe", "build_event"]
+__all__ = [
+    "log_event",
+    "log_event_safe",
+    "build_event",
+    "event_query",
+    "delete_events",
+]
 
 logger = logging.getLogger("eventlog_pro")
 
@@ -174,6 +184,163 @@ def log_event_safe(**kwargs: Any) -> Event | None:
     except Exception:
         logger.exception("eventlog_pro failed to write event (kwargs=%r)", _redact(kwargs))
         return None
+
+
+def event_query(
+    *,
+    id: int | None = None,  # shadows the builtin, but it is the column's name
+    created_at: datetime | date | None = None,
+    from_created_at: datetime | date | None = None,
+    to_created_at: datetime | date | None = None,
+    created_by: str | None = None,
+    app: str | None = None,
+    category: str | None = None,
+    sub_category: str | None = None,
+    event_code: str | None = None,
+    event_type: str | None = None,
+    entity_app: str | None = None,
+    entity_model: str | None = None,
+    entity_id: str | None = None,
+    remarks: str | None = None,
+    data: str | None = None,
+    order_by: Any = None,
+    limit: int | None = UNSET,
+) -> list[Event]:
+    """Read stored events back. **Raises** if the read fails.
+
+    Parameters
+    ----------
+    id : int | None
+        Exact primary key.
+    created_at : datetime | date | None
+        A ``datetime`` matches that instant; a ``date`` matches the whole UTC
+        day. Cannot be combined with the two range arguments.
+    from_created_at, to_created_at : datetime | date | None
+        Range bounds. ``from_created_at`` is inclusive. ``to_created_at`` is
+        inclusive as a ``datetime``, and as a ``date`` means "through the end
+        of that day".
+    created_by, app, category, sub_category, event_code, event_type,
+    entity_app, entity_model, entity_id, remarks : str | None
+        Exact match. ``None`` means "not filtered"; ``""`` is a real filter
+        matching the empty column.
+    data : str | None
+        **Substring**, not equality — the odd one out. ``data="INV-1234"``
+        matches any row whose stored JSON contains that text, in a key or a
+        value. Case-sensitive except on MySQL, and unindexed, so pair it with
+        another filter on a large table. Passing a ``dict`` raises
+        ``TypeError``.
+    order_by : str | tuple | sequence | None
+        ``"category"``, ``"-created_at"``, ``("category", "ASC")``, or a
+        sequence mixing those, where position is sort priority. Defaults to
+        newest first.
+    limit : int | None
+        How many rows at most. **Defaults to 100** — pass ``limit=None`` for
+        every match.
+
+    Returns
+    -------
+    list[Event]
+        Newest first unless *order_by* says otherwise. Always ``Event``
+        objects, in Django mode too.
+
+    Notes
+    -----
+    Unlike :func:`log_event`, this never goes quiet: ``raise_on_error=False``
+    is a kill switch for *writes*, and a read that silently returned ``[]``
+    would be a worse failure than an exception.
+    """
+    criteria = build_criteria(
+        id=id,
+        created_at=created_at,
+        from_created_at=from_created_at,
+        to_created_at=to_created_at,
+        created_by=created_by,
+        app=app,
+        category=category,
+        sub_category=sub_category,
+        event_code=event_code,
+        event_type=event_type,
+        entity_app=entity_app,
+        entity_model=entity_model,
+        entity_id=entity_id,
+        remarks=remarks,
+        data=data,
+        order_by=order_by,
+        limit=limit,
+    )
+    return get_backend().read(criteria)
+
+
+def delete_events(
+    *,
+    id: int | None = None,  # shadows the builtin, but it is the column's name
+    created_at: datetime | date | None = None,
+    from_created_at: datetime | date | None = None,
+    to_created_at: datetime | date | None = None,
+    created_by: str | None = None,
+    app: str | None = None,
+    category: str | None = None,
+    sub_category: str | None = None,
+    event_code: str | None = None,
+    event_type: str | None = None,
+    entity_app: str | None = None,
+    entity_model: str | None = None,
+    entity_id: str | None = None,
+    remarks: str | None = None,
+    data: str | None = None,
+    order_by: Any = None,
+    limit: int | None = None,
+) -> int:
+    """Delete stored events and return how many went. **Raises** if it fails.
+
+    Takes exactly the filters :func:`event_query` takes, so the two can be
+    paired — with one catch worth stating twice:
+
+    **`event_query()` caps at 100 rows and this does not.** To see what a
+    delete will remove, pass the same ``limit`` to both, or
+    ``event_query(..., limit=None)``. Otherwise the preview shows 100 rows and
+    the delete removes every match.
+
+    At least one real filter is required: a bare ``delete_events()`` raises
+    :class:`~eventlog_pro.exceptions.ConfigurationError` rather than truncating
+    an audit log. ``limit`` and ``order_by`` do not count as filters — they
+    choose which rows, not whether a row matches.
+
+    With ``limit`` set, the oldest matching rows go first (the retention case),
+    unless *order_by* says otherwise. That path runs two statements — select
+    the ids, then delete them — because ``DELETE ... LIMIT`` is MySQL-only, so
+    a row inserted between the two is not deleted.
+
+    ``jsonl://`` does not support deletion and raises
+    :class:`~eventlog_pro.exceptions.BackendError`.
+    """
+    criteria = build_criteria(
+        id=id,
+        created_at=created_at,
+        from_created_at=from_created_at,
+        to_created_at=to_created_at,
+        created_by=created_by,
+        app=app,
+        category=category,
+        sub_category=sub_category,
+        event_code=event_code,
+        event_type=event_type,
+        entity_app=entity_app,
+        entity_model=entity_model,
+        entity_id=entity_id,
+        remarks=remarks,
+        data=data,
+        order_by=order_by,
+        limit=limit,
+        for_delete=True,
+    )
+    if not criteria.has_filters:
+        raise ConfigurationError(
+            "delete_events() requires at least one filter — an unfiltered delete would "
+            "empty the event log. To delete everything deliberately, pass a range that "
+            "covers it, e.g. delete_events(to_created_at=date.today())."
+        )
+    return get_backend().delete(criteria)
 
 
 def _redact(kwargs: dict[str, Any]) -> dict[str, Any]:

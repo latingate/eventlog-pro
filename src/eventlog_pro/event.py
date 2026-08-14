@@ -3,11 +3,20 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from dataclasses import dataclass, field, fields
 from datetime import datetime, timezone
 from typing import Any
 
-from .schema import CHAR_COLUMNS, COLUMNS, MAX_CHARFIELD_LENGTH, to_db_datetime
+from .schema import (
+    CHAR_COLUMNS,
+    COLUMNS,
+    MAX_CHARFIELD_LENGTH,
+    SELECT_COLUMNS,
+    from_db_data,
+    from_db_datetime,
+    to_db_datetime,
+)
 
 __all__ = ["Event"]
 
@@ -66,6 +75,31 @@ class Event:
 
         if self.data is None:
             self.data = {}
+
+    @classmethod
+    def from_row(cls, row: Sequence[Any], dialect: str) -> Event:
+        """Build an :class:`Event` from one database row.
+
+        The inverse of :meth:`values`, and it expects
+        :data:`~eventlog_pro.schema.SELECT_COLUMNS` order — ``id`` first, then
+        the stored columns. ``created_at`` and ``data`` are the two that need
+        real work; the rest come back as the strings they went in as.
+        """
+        if len(row) != len(SELECT_COLUMNS):
+            raise ValueError(
+                f"Expected {len(SELECT_COLUMNS)} columns in {SELECT_COLUMNS!r}, got {len(row)}."
+            )
+        values = dict(zip(SELECT_COLUMNS, row, strict=True))
+        return cls(
+            id=values["id"],
+            created_at=from_db_datetime(values["created_at"], dialect),
+            data=from_db_data(values["data"]),
+            **{
+                name: values[name]
+                for name in SELECT_COLUMNS
+                if name not in ("id", "created_at", "data")
+            },
+        )
 
     def __str__(self) -> str:
         return (

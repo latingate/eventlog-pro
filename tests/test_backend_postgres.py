@@ -12,10 +12,11 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 import pytest
 
+import eventlog_pro
 from eventlog_pro import BackendError, configure, log_event
 from eventlog_pro.config import get_backend
 
@@ -144,3 +145,55 @@ def test_missing_database_is_a_backend_error():
     configure(dsn="postgresql://nobody:nothing@127.0.0.1:1/none?connect_timeout=1")
     with pytest.raises(BackendError):
         log_event(app="a", category="c", event_code="E")
+
+
+# --------------------------------------------------------------- reading back
+
+
+@pytest.fixture
+def seeded(configured):
+    """Rows inserted with the raw driver, so the reader is tested alone."""
+    get_backend().ensure_schema()
+    rows = [
+        ("2026-08-12 09:00:00+00", "api", "OLD", json.dumps({})),
+        ("2026-08-13 09:00:00+00", "api", "MID", json.dumps({})),
+        ("2026-08-14 23:59:59.999999+00", "web", "NEW", json.dumps({"invoice": "INV-1234"})),
+    ]
+    for created_at, app, code, data in rows:
+        configured.execute(
+            f"INSERT INTO {TABLE} (created_at, created_by, app, category, sub_category, "
+            "event_code, event_type, entity_app, entity_model, entity_id, remarks, data) "
+            "VALUES (%s, '', %s, 'webhook', '', %s, '', '', '', '', '', %s::jsonb)",
+            (created_at, app, code, data),
+        )
+    return configured
+
+
+def test_query_round_trips_every_column(seeded):
+    events = eventlog_pro.event_query()
+    assert [event.event_code for event in events] == ["NEW", "MID", "OLD"]
+    assert events[0].created_at == datetime(2026, 8, 14, 23, 59, 59, 999999, tzinfo=timezone.utc)
+    assert events[0].created_at.tzinfo is not None
+    assert events[0].data == {"invoice": "INV-1234"}  # jsonb arrives decoded
+
+
+def test_query_filters_and_ranges(seeded):
+    assert [e.event_code for e in eventlog_pro.event_query(app="api")] == ["MID", "OLD"]
+    assert [e.event_code for e in eventlog_pro.event_query(to_created_at=date(2026, 8, 13))] == [
+        "MID",
+        "OLD",
+    ]
+    # The last microsecond of the 14th must still be inside "through the 14th".
+    assert len(eventlog_pro.event_query(to_created_at=date(2026, 8, 14))) == 3
+
+
+def test_the_data_filter_casts_jsonb_to_text(seeded):
+    assert [e.event_code for e in eventlog_pro.event_query(data="INV-1234")] == ["NEW"]
+    assert eventlog_pro.event_query(data="INV-9999") == []
+
+
+def test_delete_and_limited_delete(seeded):
+    assert eventlog_pro.delete_events(to_created_at=date(2026, 8, 14), limit=1) == 1
+    assert [e.event_code for e in eventlog_pro.event_query()] == ["NEW", "MID"]
+    assert eventlog_pro.delete_events(app="api") == 1
+    assert [e.event_code for e in eventlog_pro.event_query()] == ["NEW"]
