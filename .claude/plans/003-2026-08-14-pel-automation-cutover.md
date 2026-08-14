@@ -63,9 +63,9 @@ during step 2.
 2. Yes, in the same commit as the cutover.
 3. No, leave the call sites as they are.
 4. Other. Enter your own answer or follow up question.
-**Recommendation:** 1 — separate commit, so a rollback of one is not a rollback
-of the other.
-**Answer:** 
+- **Recommendation:** 1 — separate commit, so a rollback of one is not a rollback
+  of the other.
+- **Answer:** 
 
 **Question 2.** Keep `ADMIN_READONLY = True`? This is the one behaviour change
 users will notice: the admin can no longer add or edit event rows (delete still
@@ -73,28 +73,28 @@ works). Decide during step 1.
 1. Keep it — `True`.
 2. Set `"ADMIN_READONLY": False` in `EVENTLOG_PRO`.
 3. Other. Enter your own answer or follow up question.
-**Recommendation:** 1 — keep it, unless someone actually edits event rows by
-hand.
-**Answer:** 
+- **Recommendation:** 1 — keep it, unless someone actually edits event rows by
+  hand.
+- **Answer:** 
 
 **Question 3.** Keep `ADMIN_SEARCH_DATA = True`? Searching the JSON `data`
 column is a full-table `LIKE` scan on PostgreSQL. Decide during step 1.
 1. Keep it — `True` — for now.
 2. Set it to `False` at cutover.
 3. Other. Enter your own answer or follow up question.
-**Recommendation:** 1, but check `SELECT count(*) FROM eventlog_eventlog` first;
-if the table is already past a few hundred thousand rows, choose 2 instead of
-waiting for the first timeout.
-**Answer:** 
+- **Recommendation:** 1, but check `SELECT count(*) FROM eventlog_eventlog` first;
+  if the table is already past a few hundred thousand rows, choose 2 instead of
+  waiting for the first timeout.
+- **Answer:** 
 
 **Question 4.** Delete `pel-automation/eventlog/` in the same release, or later?
 Decide during step 5.
 1. Later — leave it on disk, out of `INSTALLED_APPS`, for at least one release.
 2. In the same release as the cutover.
 3. Other. Enter your own answer or follow up question.
-**Recommendation:** 1 — deleting it is a separate, trivial commit once
-production has been stable.
-**Answer:** 
+- **Recommendation:** 1 — deleting it is a separate, trivial commit once
+  production has been stable.
+- **Answer:** 
 
 **Question 5.** Should the `pel-automation` docs changes go via a PR rather than
 straight to `main`? The two new files are additive, but `main` is shared.
@@ -102,8 +102,8 @@ straight to `main`? The two new files are additive, but `main` is shared.
 1. Merge the pushed branch `docs/eventlog-pro-guides` however the team normally does.
 2. Push the two files straight to `main`.
 3. Other. Enter your own answer or follow up question.
-**Recommendation:** 1 — the branch has been pushed for exactly this reason.
-**Answer:** 
+- **Recommendation:** 1 — the branch has been pushed for exactly this reason.
+- **Answer:** 
 
 ## Steps
 

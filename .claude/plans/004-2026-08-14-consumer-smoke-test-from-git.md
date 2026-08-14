@@ -64,24 +64,24 @@ Decide before step 2.
 1. Public — use `git+https://` exactly as written below.
 2. Private — use `git+ssh://git@github.com/latingate/eventlog-pro.git` with a key already loaded.
 3. Other. Enter your own answer or follow up question.
-**Recommendation:** 1 — settled by fact, not preference: anonymous `git ls-remote https://github.com/latingate/eventlog-pro` succeeded on 2026-08-14, which only a public repository allows.
-**Answer:** 1
+- **Recommendation:** 1 — settled it by fact, not preference: anonymous `git ls-remote https://github.com/latingate/eventlog-pro` succeeded on 2026-08-14, which only a public repository allows.
+- **Answer:** 1
 
 **Question 2.** Pin the install to which revision? Decide during step 2.
 1. The commit SHA `fd6bea4` — reproducible, and exactly what plan 002 will tag.
 2. `main` — whatever is newest at install time.
 3. Tag `v0.1.0` first, then install that — makes this a full release rehearsal.
 4. Other. Enter your own answer or follow up question.
-**Recommendation:** 1 — a SHA cannot drift between the install and the result, and creating the real tag before the smoke test spends the one tag name you get.
-**Answer:** 1
+- **Recommendation:** 1 — a SHA cannot drift between the install and the result, and creating the real tag before the smoke test spends the one tag name you get.
+- **Answer:** 1
 
 **Question 3.** Which modes to exercise? Decide during step 4.
 1. Both — pure SQLite (step 4) and Django (step 5).
 2. Pure SQLite only.
 3. Django only.
 4. Other. Enter your own answer or follow up question.
-**Recommendation:** 1 — they are different code paths with different failure modes. Django is the one `pel-automation` will actually use; pure mode is the one a stranger installing from PyPI hits first.
-**Answer:** 1
+- **Recommendation:** 1 — they are different code paths with different failure modes. Django is the one `pel-automation` will actually use; pure mode is the one a stranger installing from PyPI hits first.
+- **Answer:** 1
 
 ## Steps
 

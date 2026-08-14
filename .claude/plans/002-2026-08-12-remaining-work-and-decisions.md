@@ -67,9 +67,9 @@ benefit. **Decision needed before step 1.**
 2. A private index.
 3. A git dependency (`pip install git+https://github.com/latingate/eventlog-pro@v0.1.0`).
 4. Other. Enter your own answer or follow up question.
-**Recommendation:** 1 — public PyPI. The trusted-publishing workflow is already
-written for it, and a git dependency makes the `~=0.1.0` pin meaningless.
-**Answer:** 1
+- **Recommendation:** 1 — public PyPI. The trusted-publishing workflow is already
+  written for it, and a git dependency makes the `~=0.1.0` pin meaningless.
+- **Answer:** 1
 
 **Question 2.** Keep the name `eventlog-pro`, or rename before anyone installs
 it? Renaming later is a `name =` change plus new URLs — cheap now, expensive
@@ -77,9 +77,9 @@ afterwards. **Decision needed before step 1.**
 1. Keep `eventlog-pro`, after confirming <https://pypi.org/project/eventlog-pro/> is free.
 2. Rename — supply the new name.
 3. Other. Enter your own answer or follow up question.
-**Recommendation:** 1 — keep it, but check the URL before tagging rather than
-after.
-**Answer:** 1
+- **Recommendation:** 1 — keep it, but check the URL before tagging rather than
+  after.
+- **Answer:** 1
 
 ## Steps
 

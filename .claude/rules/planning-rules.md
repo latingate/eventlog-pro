@@ -60,6 +60,8 @@
     - `Answer: <answer>` - this should be placed in the last line of each open question, if there is no answer yet – put
       one space instead of <answer>, do not put `_pending_` or any other text or symbol instead
     - Put a new line between these sub-sections of each question. Do not put empty lines
+    - Start `Recommendation:` and `Answer:` with `- `, or Markdown merges them into the last
+      numbered answer. Indent wrapped lines by two spaces to keep them in the bullet.
 
 ## Supersession Rule
 
