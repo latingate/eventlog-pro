@@ -52,16 +52,17 @@
 ### Open Questions section
 
 - Use this format sub-sections for each question:
-    - `Question: <question>` - if question is not an open question and have multiple answers to choose from, put every
-      answer in a separate line, starting with a number in this format `1. <answer>`  `2. <answer>` and the user can
-      simply reply with that number. You can only add another answer such as "Other. Enter your own answer or follow up
-      question."
-    - `Recommendation: <recommendation>`
-    - `Answer: <answer>` - this should be placed in the last line of each open question, if there is no answer yet – put
-      one space instead of <answer>, do not put `_pending_` or any other text or symbol instead
-    - Put a new line between these sub-sections of each question. Do not put empty lines
-    - Start `Recommendation:` and `Answer:` with `- `, or Markdown merges them into the last
-      numbered answer. Indent wrapped lines by two spaces to keep them in the bullet.
+    - `**Question:** <question>` - if question is not an open question and have multiple answers to choose from, put
+      every answer in a separate line, starting with a number in this format `(1) <answer>`  `(2) <answer>` and the user
+      can simply reply with that number. You can also add another answer such as "Other. Enter your own answer or follow
+      up question."
+    - `**Recommendation:** <recommendation>`
+    - `**Answer:** <answer>` - if there is no answer yet – put one space instead of <answer> so that the answer the user
+      types will not be right after the `**`. Do not put `_pending_` or any other text or symbol instead
+    - Put a line break between these sub-sections. Do not put empty lines between them.
+    - Start `Recommendation:` and `Answer:` with `- `, or Markdown merges them into the last numbered answer. Indent
+      wrapped lines by two spaces to keep them in the bullet.
+    - etween the questions – insert 2 line breaks.
 
 ## Supersession Rule
 

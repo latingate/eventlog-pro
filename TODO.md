@@ -8,6 +8,9 @@ Nothing here is scheduled. Order within a section is rough priority.
 
 ## Read side
 
+Planned in [`.claude/plans/006-2026-08-14-read-and-delete-api.md`](.claude/plans/006-2026-08-14-read-and-delete-api.md),
+together with the delete API below.
+
 0.1.0 is **write-only** outside Django: `Backend` exposes `write`,
 `ensure_schema`, `create_schema`, `ddl` and `close`, and there is no query API,
 no CLI and no viewer. Django users get the admin at
@@ -27,6 +30,11 @@ Worth doing only if consumers actually write to SQLite or PostgreSQL *without*
 Django. For `pel-automation` the question is moot — it runs Django.
 
 ## Delete side
+
+Planned in [`.claude/plans/006-2026-08-14-read-and-delete-api.md`](.claude/plans/006-2026-08-14-read-and-delete-api.md).
+Of the three questions below, that plan adopts the first (require a filter) and
+deliberately leaves the other two — `allow_delete` gating and the admin
+inconsistency — open and unbuilt.
 
 - **A delete API** — `delete(app=…, before=…, …) -> int`, taking the same
   filters as the read API above and returning the number of rows removed. Build
