@@ -94,14 +94,30 @@ afterwards. **Decision needed before step 1.**
    environment in the GitHub repository settings — `publish.yml:65` names it,
    and the job fails without it. **No API token is created for PyPI, ever.**
 3. **Rehearse on TestPyPI.** This runs from a laptop, not from the workflow, so
-   it does need a TestPyPI API token in `~/.pypirc` — a throwaway credential on
-   a throwaway index, and the one exception to the no-token rule above.
+   it does need a TestPyPI API token — a throwaway credential on a throwaway
+   index, and the one exception to the no-token rule above. TestPyPI is a
+   separate site with its own account. Store the token in `~/.pypirc` under a
+   `[testpypi]` section with `username = __token__`, or export
+   `TWINE_USERNAME=__token__` and `TWINE_PASSWORD=<token>` for the session and
+   write nothing to disk. Never inside the repository.
    ```bash
-   python -m build
-   twine check dist/*
-   twine upload --repository testpypi dist/*
-   pip install --index-url https://test.pypi.org/simple/ "eventlog-pro[django]"
+   rm -rf dist                      # never upload stale artefacts
+   python -m build                  # -> dist/*.whl and dist/*.tar.gz
+   python -m twine check dist/*     # metadata and README rendering
+   python -m twine upload --repository testpypi dist/*
    ```
+   Then install it back, in a throwaway venv:
+   ```bash
+   pip install --index-url https://test.pypi.org/simple/ \
+               --extra-index-url https://pypi.org/simple/ \
+               "eventlog-pro[django]"
+   ```
+   `--extra-index-url` is **required**, not optional: `--index-url` replaces
+   PyPI outright, and Django is not mirrored on TestPyPI, so without it the
+   install fails to resolve the dependency and the rehearsal proves nothing.
+
+   On Windows use `.\.venv\Scripts\python.exe -m …`; bare `twine` is not on
+   `PATH`, and a backtick continues the line instead of a backslash.
 4. **Tag and let CI publish.**
    ```bash
    git tag v0.1.0 && git push --tags
@@ -110,6 +126,23 @@ afterwards. **Decision needed before step 1.**
    contains both migrations and `py.typed` before it uploads.
 
 ## Validation
+
+**Step 3 executed 2026-08-14 against `dce2354`. Passed.**
+
+| Check | Result |
+|---|---|
+| `twine check dist/*` | PASSED for both the wheel and the sdist |
+| Upload to TestPyPI | both files accepted; <https://test.pypi.org/project/eventlog-pro/0.1.0/> |
+| Published wheel size | 51,078 bytes — no bloat. The `71.6 kB` twine prints is the multipart upload body, not the file |
+| Wheel contents | 36 entries, `eventlog_pro/**` and `dist-info` only; no plans, tests or stray files |
+| `py.typed` and both migrations | present in the published artefact |
+| Metadata | `Description-Content-Type: text/markdown`, `Requires-Python: >=3.10`, all five extras (`all`, `dev`, `django`, `mysql`, `postgres`) declared |
+| Install from TestPyPI | succeeded with `--extra-index-url`, resolving Django 6.1 from PyPI |
+| Write + read back from the installed package | `(1, 'testpypi', 'FROM_TESTPYPI', '{"ok": true}')` |
+| README rendering on the project page | confirmed by eye — formatted, not raw text |
+
+Step 2 is also done: PyPI account, pending publisher, and the `pypi` environment
+in the GitHub repository all exist. Step 4 is unblocked.
 
 After step 4:
 
@@ -124,6 +157,7 @@ python -m zipfile -l /tmp/check/*.whl | grep -E "migrations|py.typed"
 |---|---|---|---|
 | The PyPI name is taken | low | medium | question 2, checked before tagging |
 | A bad 0.1.0 reaches PyPI, where releases cannot be replaced | low | medium | rehearse on TestPyPI first (step 3); yank and fix forward as 0.1.1 |
+| Step 3 burns the version number on TestPyPI too, so the same rehearsal cannot be repeated | medium | low | rehearse once, deliberately; a second attempt needs `0.1.0.post1` or a bumped version |
 
 ## Rollout Order
 
