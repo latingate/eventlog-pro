@@ -2,11 +2,17 @@
 
 Status: done
 Owner: Gal Sarig
-Last updated: 2026-08-12
+Last updated: 2026-08-14
 
-Executed in full. Remaining work — publishing 0.1.0 and the pel-automation
-cutover, both listed under "Optional follow-up" below — is tracked in
-[002-2026-08-12-remaining-work-and-decisions.md](002-2026-08-12-remaining-work-and-decisions.md).
+Executed in full. Remaining work, both listed under "Optional follow-up" below,
+is tracked in two plans — split on 2026-08-14 because the second is work in a
+different repository:
+
+- publishing 0.1.0 → [002-2026-08-12-remaining-work-and-decisions.md](002-2026-08-12-remaining-work-and-decisions.md)
+- the `pel-automation` cutover → [003-2026-08-14-pel-automation-cutover.md](003-2026-08-14-pel-automation-cutover.md)
+
+Plus a pre-release check added on 2026-08-14, which runs before 002:
+[004-2026-08-14-consumer-smoke-test-from-git.md](004-2026-08-14-consumer-smoke-test-from-git.md).
 
 ## Open Questions
 
