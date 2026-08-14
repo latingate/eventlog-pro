@@ -141,17 +141,10 @@ A bad release is yanked on PyPI, not deleted; `0.1.1` fixes forward. Nothing in
 
 ## Deferred — 0.2 candidates, not planned
 
-Recorded so they are not rediscovered later. None is a defect.
+Moved on 2026-08-14 to [`TODO.md`](../../TODO.md) at the repository root, so the
+list outlives this plan and is visible to anyone reading the repository rather
+than buried in a plan that gets marked `done` after the release. Keep it there;
+do not re-add items here, or the two lists will drift.
 
-- `event_type` casing is inconsistent: recognised values render upper-cased,
-  unrecognised ones keep their original casing. Preserved verbatim from the
-  source app.
-- No `choices` or enum on `event_type`, no validation on `app`.
-- No connection pooling, batching or async.
-- `jsonl://` leaves `id` as `None`.
-- Changing `EVENTLOG_PRO["TABLE"]` after import neither moves the table nor
-  generates a rename; the `eventlog_pro.W001` check reports the drift.
-- `contrib/flask/` is possible with the current layout; nobody has asked.
-- Local development installs Django 6.1 (the extra is `Django>=4.2`), while CI
-  covers 4.2 and 5.2. Pinning the dev environment to 5.2 would match production
-  more closely.
+Added at the same time: a read API, a CLI and a pure-mode dashboard — 0.1.0 is
+write-only outside Django, which is a deliberate omission rather than a defect.
