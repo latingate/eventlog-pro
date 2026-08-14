@@ -2,7 +2,7 @@
 
 Status: active
 Owner: Gal Sarig
-Last updated: 2026-08-12
+Last updated: 2026-08-14
 
 Follows [001-2026-08-12-eventlog-pro-package-extraction.md](001-2026-08-12-eventlog-pro-package-extraction.md),
 which is now `done`. This plan covers what that one deliberately left out: the
@@ -62,55 +62,80 @@ MySQL 8 containers.
 
 ## Open Questions
 
-Each has a recommended answer. Nothing below blocks anything already built.
+Each carries a recommendation. Every `Answer:` is still open — nothing here has
+been decided, and nothing here blocks anything already built. Reply with the
+number of the option you want.
 
-1. **Publish to public PyPI, or keep it private?**
-   The package carries no PEL-specific logic, so public is defensible, but it
-   also carries no business benefit. Options: public PyPI, a private index, or a
-   git dependency (`pip install git+https://github.com/latingate/eventlog-pro@v0.1.0`).
-   *Recommended:* **public PyPI.** The trusted-publishing workflow is already
-   written for it, and a git dependency makes the `~=0.1.0` pin meaningless.
-   → **Decision needed before step 1.**
+**Question 1.** Publish to public PyPI, or keep it private? The package carries
+no PEL-specific logic, so public is defensible, but it also carries no business
+benefit. **Decision needed before step 1.**
+1. Public PyPI.
+2. A private index.
+3. A git dependency (`pip install git+https://github.com/latingate/eventlog-pro@v0.1.0`).
+4. Other. Enter your own answer or follow up question.
+**Recommendation:** 1 — public PyPI. The trusted-publishing workflow is already
+written for it, and a git dependency makes the `~=0.1.0` pin meaningless.
+**Answer:** 1
 
-2. **Is the name `eventlog-pro` free on PyPI, and is it the name you want?**
-   *Recommended:* check <https://pypi.org/project/eventlog-pro/> before tagging.
-   If taken, renaming later is a `name =` change plus new URLs — cheap now,
-   expensive after anyone installs it.
-   → **Decision needed before step 1.**
+**Question 2.** Keep the name `eventlog-pro`, or rename before anyone installs
+it? Renaming later is a `name =` change plus new URLs — cheap now, expensive
+afterwards. **Decision needed before step 1.**
+1. Keep `eventlog-pro`, after confirming <https://pypi.org/project/eventlog-pro/> is free.
+2. Rename — supply the new name.
+3. Other. Enter your own answer or follow up question.
+**Recommendation:** 1 — keep it, but check the URL before tagging rather than
+after.
+**Answer:** 1
 
-3. **Switch the 16 webhook call sites to `log_event_safe`?**
-   They sit on the Zoho webhook path with no exception guard today, so a logging
-   failure can turn a good webhook into a 500. `from eventlog_pro import
-   log_event_safe as log_event` is a one-line diff at `pel/views.py:50`.
-   *Recommended:* **yes**, but as a separate commit after the cutover is green,
-   so a rollback of one is not a rollback of the other.
-   → Decide during step 6.
+**Question 3.** Switch the 16 webhook call sites to `log_event_safe`? They sit
+on the Zoho webhook path with no exception guard today, so a logging failure can
+turn a good webhook into a 500. `from eventlog_pro import log_event_safe as
+log_event` is a one-line diff at `pel/views.py:50`. Decide during step 6.
+1. Yes, as its own commit after the cutover is green.
+2. Yes, in the same commit as the cutover.
+3. No, leave the call sites as they are.
+4. Other. Enter your own answer or follow up question.
+**Recommendation:** 1 — separate commit, so a rollback of one is not a rollback
+of the other.
+**Answer:** 
 
-4. **Keep `ADMIN_READONLY = True`?**
-   This is the one behaviour change users will notice: the admin can no longer
-   add or edit event rows (delete still works).
-   *Recommended:* **keep it.** Set `"ADMIN_READONLY": False` in `EVENTLOG_PRO`
-   if anyone actually edits event rows by hand.
-   → Decide during step 5.
+**Question 4.** Keep `ADMIN_READONLY = True`? This is the one behaviour change
+users will notice: the admin can no longer add or edit event rows (delete still
+works). Decide during step 5.
+1. Keep it — `True`.
+2. Set `"ADMIN_READONLY": False` in `EVENTLOG_PRO`.
+3. Other. Enter your own answer or follow up question.
+**Recommendation:** 1 — keep it, unless someone actually edits event rows by
+hand.
+**Answer:** 
 
-5. **Keep `ADMIN_SEARCH_DATA = True`?**
-   Searching the JSON `data` column is a full-table `LIKE` scan on PostgreSQL.
-   *Recommended:* **keep it for now** — check `SELECT count(*) FROM
-   eventlog_eventlog` first; if the table is already past a few hundred thousand
-   rows, set it to `False` at cutover instead of waiting for the first timeout.
-   → Decide during step 5.
+**Question 5.** Keep `ADMIN_SEARCH_DATA = True`? Searching the JSON `data`
+column is a full-table `LIKE` scan on PostgreSQL. Decide during step 5.
+1. Keep it — `True` — for now.
+2. Set it to `False` at cutover.
+3. Other. Enter your own answer or follow up question.
+**Recommendation:** 1, but check `SELECT count(*) FROM eventlog_eventlog` first;
+if the table is already past a few hundred thousand rows, choose 2 instead of
+waiting for the first timeout.
+**Answer:** 
 
-6. **Delete `pel-automation/eventlog/` in the same release, or later?**
-   *Recommended:* **later.** Leave it on disk, out of `INSTALLED_APPS`, for at
-   least one release; deleting it is a separate, trivial commit once production
-   has been stable.
-   → Decide during step 9.
+**Question 6.** Delete `pel-automation/eventlog/` in the same release, or later?
+Decide during step 9.
+1. Later — leave it on disk, out of `INSTALLED_APPS`, for at least one release.
+2. In the same release as the cutover.
+3. Other. Enter your own answer or follow up question.
+**Recommendation:** 1 — deleting it is a separate, trivial commit once
+production has been stable.
+**Answer:** 
 
-7. **Should `pel-automation` docs changes go via a PR rather than straight to
-   `main`?** The two new files are additive, but `main` is shared.
-   *Recommended:* the branch `docs/eventlog-pro-guides` has been pushed for
-   exactly this reason; merge it however the team normally does.
-   → **Decision needed now** (the branch is waiting).
+**Question 7.** Should `pel-automation` docs changes go via a PR rather than
+straight to `main`? The two new files are additive, but `main` is shared.
+**Decision needed now** (the branch is waiting).
+1. Merge the pushed branch `docs/eventlog-pro-guides` however the team normally does.
+2. Push the two files straight to `main`.
+3. Other. Enter your own answer or follow up question.
+**Recommendation:** 1 — the branch has been pushed for exactly this reason.
+**Answer:** 
 
 ## Steps
 
