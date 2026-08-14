@@ -13,10 +13,11 @@ business events you will query later, not lines of text you will grep.
 
 ```python
 import eventlog_pro
+from eventlog_pro import log_event
 
 eventlog_pro.configure(dsn="postgresql://user:pw@db/app")
 
-eventlog_pro.log_event(
+log_event(
     app="api",
     category="webhook",
     sub_category="zoho",
