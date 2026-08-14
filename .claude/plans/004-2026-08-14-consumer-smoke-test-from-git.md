@@ -31,12 +31,13 @@ against the ORM with migrations and admin.
   2026-08-14. CI proves the Postgres code works; this proves the built artefact
   does, which nothing else covered.
 
+- The installed wheel against a **real MySQL server** (step 5c), added
+  2026-08-14 after the same reasoning as PostgreSQL: a consumer who installs
+  `eventlog-pro[mysql]` and hits a failure nobody checked is not an acceptable
+  outcome, even though `pel-automation` itself is PostgreSQL.
+
 **Out of scope**
 
-- Running SQL against a real MySQL server. `ci.yml:97-120` runs 9 tests against
-  a `mysql:8` container, and no MySQL server is available here. The MySQL half
-  of step 3b (the extra resolves, the module imports) is the coverage this plan
-  offers.
 - Publishing anything — that is plan 002.
 - The `pel-automation` cutover — that is plan 003.
 
@@ -326,6 +327,31 @@ repository** — see Risks.
    DROP ROLE eventlog_smoke;
    ```
 
+5c. **The installed wheel against a real MySQL server.** No MySQL is installed
+   locally, so use the same image CI does. Docker Desktop must be running:
+   ```powershell
+   docker run --name evp-mysql -e MYSQL_ROOT_PASSWORD=secret -e MYSQL_DATABASE=evp -p 3306:3306 -d mysql:8
+   .\.venv\Scripts\python.exe smoke_mysql.py
+   docker rm -f evp-mysql
+   ```
+   `smoke_mysql.py` mirrors `smoke_postgres.py` against MySQL's own dialect:
+   column types from `schema.py:115-120` including `datetime(6)` precision;
+   `id` as `AUTO_INCREMENT`; the three indexes; `lastrowid` populating `id`;
+   `created_at` stored as **naive UTC** rather than aware, per
+   `schema.to_db_datetime`; a `json` round-trip; truncation to 100 characters;
+   and a `JSON_CONTAINS` query, which only works if the column is really `json`.
+
+   The check that matters most here is the idempotent re-run: MySQL has no
+   `CREATE INDEX IF NOT EXISTS`, so the backend must swallow `ER_DUP_KEYNAME`
+   (1061) — see `backends/mysql.py:27-28`. That is a MySQL-only code path with
+   no equivalent on the other backends.
+
+   While the container is up, run the integration suite too:
+   ```powershell
+   $env:EVENTLOG_TEST_MYSQL_DSN = "mysql://root:secret@127.0.0.1:3306/evp"
+   .\.venv\Scripts\python.exe -m pytest tests/test_backend_mysql.py -q
+   ```
+
 6. **Admin, in a browser.**
    ```powershell
    python manage.py createsuperuser
@@ -369,6 +395,7 @@ step 2 onwards if a later commit changes anything the package actually ships.
 | ORM read | count is `1`, and `data` round-trips as a dict, not a string | pass — `{'x': 1}`, type `dict` |
 | Admin list page | row visible, date hierarchy works, **no add button** | pass — driven through Django's test client in `smoke_admin.py`, see below |
 | Step 5b real PostgreSQL | all nine checks pass against a live server | pass — `POSTGRES OK` against **PostgreSQL 18.3**, a version CI does not cover (`ci.yml` uses `postgres:16`) |
+| Step 5c real MySQL | all eight checks pass against a live server | pass — `MYSQL OK` against **MySQL 8.4.11** in a `mysql:8` container, plus all 9 tests in `tests/test_backend_mysql.py` |
 | `EventLog._meta.db_table` | `eventlog_eventlog` | pass — the name plan 003's `--fake-initial` adoption depends on |
 
 Three things worth carrying forward:
@@ -386,12 +413,12 @@ Three things worth carrying forward:
   no "Add event log" button in the HTML, `data` present in `search_fields`
   (`ADMIN_SEARCH_DATA`), the `created_at__year` drill-down 200 with the row, and
   the change form 200. Step 6 is now confirmation by eye, not the only evidence.
-- **PostgreSQL is now verified end to end from the artefact.** Step 5b ran
-  against PostgreSQL **18.3** — CI uses `postgres:16`, so this adds a version
-  rather than repeating one. The DDL, the identity column and `jsonb` all behave
-  identically. Combined with CI's 16 coverage and the MySQL 8 job, the only
-  untested combination left is the wheel against a live **MySQL** server, which
-  no machine here has.
+- **All three databases are now verified from the artefact.** Step 5b ran
+  against PostgreSQL **18.3** (CI uses `postgres:16`, so this adds a version
+  rather than repeating one) and step 5c against **MySQL 8.4.11** in a container.
+  Every backend the package ships has now been exercised from the built wheel
+  against a real server, not only from a source checkout in CI. Nothing is left
+  untested.
 - **The base install genuinely stands alone.** Step 4b's venv contains
   `eventlog-pro` and `pip`, nothing else — `pip show` lists no `Requires:` — and
   the full pure-mode surface works there, including the two error paths a

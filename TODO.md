@@ -133,5 +133,6 @@ email as one supplied callback?
 - CI covers `postgres:16` and `mysql:8`. PostgreSQL 18.3 has been verified by
   hand; adding 18 to the CI matrix would make that continuous rather than a
   one-off.
-- No MySQL server has ever been tested against the built wheel — only against a
-  source checkout in CI.
+- Every backend has now been exercised from the built wheel against a real
+  server — SQLite, PostgreSQL 18.3 and MySQL 8.4.11 — but only by hand, once, on
+  one machine. Only CI makes that continuous.
