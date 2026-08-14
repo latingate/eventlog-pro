@@ -1,6 +1,6 @@
 # Release `eventlog-pro` 0.1.0
 
-Status: active
+Status: done
 Owner: Gal Sarig
 Last updated: 2026-08-14
 
@@ -144,12 +144,17 @@ afterwards. **Decision needed before step 1.**
 Step 2 is also done: PyPI account, pending publisher, and the `pypi` environment
 in the GitHub repository all exist. Step 4 is unblocked.
 
-After step 4:
+**Step 4 executed 2026-08-14. Passed — 0.1.0 is on PyPI.**
 
-```bash
-pip download eventlog-pro==0.1.0 --no-deps -d /tmp/check   # it is really on PyPI
-python -m zipfile -l /tmp/check/*.whl | grep -E "migrations|py.typed"
-```
+| Check | Result |
+|---|---|
+| `https://pypi.org/pypi/eventlog-pro/json` | version `0.1.0`, 2 files (wheel + sdist), `Requires-Python: >=3.10` |
+| `pip install "eventlog-pro[django]"` from a clean venv, no index flags | succeeded, resolving Django 6.1 |
+| Published wheel contents | `py.typed`, `0001_initial.py`, `0002_add_indexes.py` all present |
+| Write + read back from the released package | `(1, 'from-pypi', 'RELEASED', '{"live": true}')` |
+
+Nothing in this plan remains. Next is
+[003-2026-08-14-pel-automation-cutover.md](003-2026-08-14-pel-automation-cutover.md).
 
 ## Risks
 
