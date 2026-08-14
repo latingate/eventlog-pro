@@ -51,7 +51,7 @@
 
 ### Open Questions section
 
-- Use this format for questions:
+- Use this format sub-sections for each question:
     - `Question: <question>` - if question is not an open question and have multiple answers to choose from, put every
       answer in a separate line, starting with a number in this format `1. <answer>`  `2. <answer>` and the user can
       simply reply with that number. You can only add another answer such as "Other. Enter your own answer or follow up
@@ -59,7 +59,7 @@
     - `Recommendation: <recommendation>`
     - `Answer: <answer>` - this should be placed in the last line of each open question, if there is no answer yet – put
       one space instead of <answer>, do not put `_pending_` or any other text or symbol instead
-    - Do not use empty lines between the paragraph of each question.
+    - Put a new line between these sub-sections of each question. Do not put empty lines
 
 ## Supersession Rule
 
