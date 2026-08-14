@@ -75,13 +75,20 @@ Notes:
 
 ```python
 import eventlog_pro
+from eventlog_pro import log_event
 
-eventlog_pro.configure(dsn="sqlite:///./events.db")
-event = eventlog_pro.log_event(app="api", category="system", event_code="STARTUP")
+eventlog_pro.configure(dsn="sqlite:///./events.db")   # once, at startup
+
+event = log_event(app="api", category="system", event_code="STARTUP")
 print(event.id)
 ```
 
 Or configure nothing in code and set `EVENTLOG_DSN` in the environment.
+
+The two import styles are deliberate. `log_event` is imported by name because it
+appears at every call site, and `configure` is left qualified because it is
+called once and `configure(...)` alone says nothing about *what* is being
+configured in a file that sets up several libraries.
 
 ### Django
 
@@ -106,6 +113,17 @@ EVENTLOG_PRO = {
 
 ```bash
 python manage.py migrate eventlog_pro
+```
+
+Then log events from anywhere in the project. There is no `configure()` call —
+putting the app in `INSTALLED_APPS` is the configuration, and `AppConfig.ready()`
+points the package at the `DATABASE_ALIAS` you chose:
+
+```python
+from eventlog_pro import log_event
+
+event = log_event(app="api", category="system", event_code="STARTUP")
+print(event.id)
 ```
 
 `log_event()` is the *same function* in both modes. In Django mode it returns
