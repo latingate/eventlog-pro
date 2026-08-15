@@ -33,6 +33,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   [docs/features/jsonl-backend.md](https://github.com/latingate/eventlog-pro/blob/main/docs/features/jsonl-backend.md).
   Note this only reaches PyPI when a version uploads — unlike the README, a
   summary cannot be corrected in place.
+- **The author email is no longer published as package metadata.** `authors` in
+  `pyproject.toml` carried a personal address, which PyPI renders in the Meta
+  panel on the project page. The entry now names the author with no address;
+  `[project.urls]` already points at the repository's Issues page, which is the
+  contact channel that gets read. Like the summary above, this only reaches PyPI
+  when a version uploads, and it cannot be corrected retroactively — 0.2.2 and
+  earlier keep the old metadata permanently.
 
 ## [0.2.2] - 2026-08-16
 
