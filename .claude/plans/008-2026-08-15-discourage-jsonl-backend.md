@@ -1,7 +1,8 @@
 # Document `jsonl://` as a niche, not-recommended backend
 
-Status: active — steps 1-8 executed on branch `docs/jsonl-not-recommended`
-(commit `e6be760`); done once the PR merges
+Status: done — merged to `main` on 2026-08-15 as `193d072` (PR #2), all 13 CI
+checks green. The changelog entry waits under `[Unreleased]`; nothing reaches
+PyPI until a version is cut per plan 005.
 Owner: Gal Sarig
 Last updated: 2026-08-15
 
