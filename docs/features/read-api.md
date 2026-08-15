@@ -109,7 +109,7 @@ table does not load the whole log; it is the one place this API is not literal.
 | `sqlite`, `postgresql`, `mysql` | `SELECT` built by `schema.select_sql()`, executed through the existing `run()` wrapper, so a dead connection is still retried once. |
 | `django` | Translated to a queryset. `data=` needs `Cast("data", TextField())` first: `data__contains` on a `JSONField` means JSON *containment*, not substring, and raises `NotSupportedError` on SQLite. |
 | `memory`, `jsonl` | Filtered in Python by `Criteria.matches()`, then sorted by `criteria.sort_events()`. Case-sensitive, so they agree with SQLite and PostgreSQL rather than MySQL. |
-| `jsonl` | Full file scan, one JSON object per line. A missing file reads as `[]`; an unparsable line is skipped, so a torn final write does not make the log unreadable. `id` stays `None`. |
+| `jsonl` | Full file scan, one JSON object per line — there is no index, so cost is proportional to file size on every query, and `limit` is applied after the whole file has been read rather than stopping it early. A missing file reads as `[]`; an unparsable line is skipped, so a torn final write does not make the log unreadable. `id` stays `None`, so `id=` matches nothing. Not a backend to read through in earnest — see [jsonl-backend.md](jsonl-backend.md). |
 | `null` | Always `[]`. |
 
 Custom backends registered with `register_backend()` inherit a `read()` that

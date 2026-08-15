@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Documentation
+
+- **`jsonl://` is documented as an export format, not a general-purpose
+  backend**, and `sqlite://` is named as the recommended choice whenever the
+  requirement is "no database server" — it is stdlib, adds no dependency, needs
+  no server, and supports the full read and delete API. The README previously
+  listed JSONL beside the three databases and credited it with half of the
+  zero-dependency install, which invited people to pick it and then meet
+  `id is None`, full-scan reads and a raising `delete_events()` at runtime.
+- **No behaviour changed and no DSN was removed.** `jsonl://` works exactly as
+  it did in 0.2.0; existing deployments need to do nothing. The only code change
+  is a module docstring.
+- New `docs/features/jsonl-backend.md` — what the backend writes, when it is the
+  right choice (shipping the file to a collector that will own it), when it is
+  not, and retention by rotation.
+- A `jsonl://` delete is now recorded as **rejected rather than deferred**. A
+  read-filter-rewrite has a crash window that can truncate the log, its lock is
+  per-process, and with `id` always `None` there is no way to name a row.
+  Retention on an append-only file is rotation.
+
 ## [0.2.0] - 2026-08-15
 
 ### Added

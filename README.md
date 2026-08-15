@@ -4,7 +4,8 @@ A small structured event log: one `log_event()` call, one twelve-column row, two
 interchangeable modes.
 
 - **Pure Python** — the default install has **zero dependencies**. Writes to
-  SQLite, PostgreSQL, MySQL/MariaDB or JSONL, chosen by a DSN.
+  SQLite, PostgreSQL or MySQL/MariaDB, chosen by a DSN. SQLite needs no server
+  and no dependency, so "I don't want to run a database" is already covered.
 - **Django** — the app, model, migrations and admin, routed through the ORM.
 
 Both modes write the **same table shape**, so one database can be read by
@@ -33,7 +34,7 @@ log_event(
 ## Install
 
 ```bash
-pip install eventlog-pro                 # SQLite + JSONL, no dependencies
+pip install eventlog-pro                 # SQLite, no dependencies
 pip install "eventlog-pro[django]"       # the Django app
 pip install "eventlog-pro[postgres]"     # psycopg 3
 pip install "eventlog-pro[mysql]"        # PyMySQL
@@ -144,7 +145,7 @@ returned before); in pure mode, an `Event` dataclass. Both expose `.id`, `.app`,
 | `sqlite:///./eventlog-pro.db` · `sqlite:////abs/path.db` · `sqlite://:memory:` | SQLite | none |
 | `postgresql://u:pw@host:5432/db` · `postgres://…` | PostgreSQL | `[postgres]` |
 | `mysql://u:pw@host:3306/db` · `mariadb://…` | MySQL/MariaDB | `[mysql]` |
-| `jsonl:///./events.jsonl` | JSON Lines | none |
+| `jsonl:///./events.jsonl` | JSON Lines — **export only**, see below | none |
 | `memory://` | in-process list, for tests | none |
 | `null://` | accepts and discards everything | none |
 | `django://` · `django://<alias>` | Django ORM | `[django]` |
@@ -157,6 +158,24 @@ straight through to libpq (`?sslmode=require`, `?application_name=…`).
 
 Three slashes means a relative path, four means absolute — the SQLAlchemy
 convention.
+
+### Which one to use
+
+**If you do not want to run a database server, use `sqlite://`.** It is in the
+standard library, adds no dependency, needs no server, and supports the entire
+API. It is the default for exactly that reason.
+
+**`jsonl://` is not a substitute for it and is not recommended for general
+use.** It is an export format for one job: writing a file that something else —
+Fluent Bit, Vector, Loki, `logrotate` plus S3 — picks up and owns. Because it is
+a flat append-only file rather than a database, `id` is always `None`, every
+`event_query()` is a full file scan, and `delete_events()` raises rather than
+rewrite the file. Retention is rotation, not deletion. Pick it only when the
+file leaving the process is the actual requirement — see
+[docs/features/jsonl-backend.md](https://github.com/latingate/eventlog-pro/blob/main/docs/features/jsonl-backend.md).
+
+`memory://` and `null://` are for tests and for switching logging off; neither
+survives the process.
 
 ## API
 
@@ -264,8 +283,12 @@ assert delete_events(to_created_at=cutoff) == len(doomed)
 With `limit` set, the **oldest** matching rows go first — the retention case —
 unless `order_by` says otherwise. That path runs two statements (select the ids,
 then delete them), because `DELETE ... LIMIT` is MySQL-only, so a row inserted
-between the two is not deleted. `jsonl://` is append-only and raises
-`BackendError`.
+between the two is not deleted.
+
+`jsonl://` raises `BackendError` here and always will: the file is append-only,
+and deleting rows would mean rewriting it whole. Rotate the file instead, or use
+a backend that can delete — see
+[docs/features/jsonl-backend.md](https://github.com/latingate/eventlog-pro/blob/main/docs/features/jsonl-backend.md).
 
 ### Kill switch
 
@@ -408,8 +431,10 @@ and fake `0002`.
   scan that no index helps. Set `ADMIN_SEARCH_DATA = False` past ~1M rows.
 - No pooling, no batching, no async in 0.1. One connection per thread, held
   open; point the DSN at pgbouncer, or use `django://`.
-- `jsonl://` leaves `id` as `None`, and is read-only: `delete_events()` raises
-  rather than rewrite the file.
+- `jsonl://` is an export format, not a database, and is not recommended unless
+  you are shipping the file somewhere: `id` stays `None`, every read is a full
+  file scan with `limit` applied only afterwards, and `delete_events()` raises
+  rather than rewrite the file. Use `sqlite://` if you just want no server.
 - `event_query()` caps at 100 rows unless you pass `limit`, while
   `delete_events()` never caps. Pass `limit=None` when using one to preview the
   other.

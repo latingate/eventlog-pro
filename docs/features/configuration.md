@@ -73,7 +73,7 @@ the SQLAlchemy precedent, which is what people already have in their heads.
 | `postgresql://u:pw@host:5432/db` · `postgres://…` | PostgreSQL | `[postgres]` |
 | `mysql://u:pw@host:3306/db` · `mariadb://…` | MySQL/MariaDB | `[mysql]` |
 | `django://` | The Django ORM | `[django]` |
-| `jsonl:///./events.jsonl` | One JSON object per line | none |
+| `jsonl:///./events.jsonl` | One JSON object per line — **export only**, see [jsonl-backend.md](jsonl-backend.md) | none |
 | `memory://` · `null://` | In-process list · discard everything | none |
 
 Three slashes is a relative path and four is absolute, so

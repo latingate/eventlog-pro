@@ -84,7 +84,7 @@ An unlimited delete is a single `DELETE ... WHERE ...`.
 | `sqlite`, `postgresql`, `mysql` | `schema.delete_sql()`, or the two-statement form via `select_ids_sql()` + `delete_by_ids_sql()` when limited. Returns `cursor.rowcount`. |
 | `django` | `queryset.delete()`, or `filter(pk__in=ids)` first when limited — `.delete()` refuses to run on a sliced queryset, which is the same two-statement shape for the same reason. |
 | `memory` | Filters the in-process list. |
-| `jsonl` | **Raises `BackendError`.** The file is append-only; deleting would mean rewriting it whole, and an interrupted rewrite truncates a log that exists to be shipped elsewhere. Rotate it instead. A read-filter-rewrite implementation is deferred, not rejected — see `TODO.md`. |
+| `jsonl` | **Raises `BackendError`, and always will.** The file is append-only; deleting would mean rewriting it whole, and an interrupted rewrite truncates a log that exists to be shipped elsewhere. The lock is per-process, so a concurrent rewrite is unsafe in a way a concurrent append is not, and with `id` always `None` there is no way to name a row anyway. A read-filter-rewrite implementation is **rejected**, not deferred: retention on an append-only file is rotation. See [jsonl-backend.md](jsonl-backend.md). |
 | `null` | Always `0`. |
 
 Custom backends registered with `register_backend()` inherit a `delete()` that
