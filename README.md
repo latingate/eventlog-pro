@@ -172,7 +172,7 @@ a flat append-only file rather than a database, `id` is always `None`, every
 `event_query()` is a full file scan, and `delete_events()` raises rather than
 rewrite the file. Retention is rotation, not deletion. Pick it only when the
 file leaving the process is the actual requirement — see
-[docs/features/jsonl-backend.md](docs/features/jsonl-backend.md).
+[docs/features/jsonl-backend.md](https://github.com/latingate/eventlog-pro/blob/main/docs/features/jsonl-backend.md).
 
 `memory://` and `null://` are for tests and for switching logging off; neither
 survives the process.
@@ -288,7 +288,7 @@ between the two is not deleted.
 `jsonl://` raises `BackendError` here and always will: the file is append-only,
 and deleting rows would mean rewriting it whole. Rotate the file instead, or use
 a backend that can delete — see
-[docs/features/jsonl-backend.md](docs/features/jsonl-backend.md).
+[docs/features/jsonl-backend.md](https://github.com/latingate/eventlog-pro/blob/main/docs/features/jsonl-backend.md).
 
 ### Kill switch
 
