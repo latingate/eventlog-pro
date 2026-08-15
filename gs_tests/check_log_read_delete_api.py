@@ -118,8 +118,9 @@ def main() -> None:
     results = [
         expect("everything (default limit=100, newest first)", event_query(), 5),
         expect("app='api'", event_query(app="api"), 2),
-        expect("category='auth', event_type='info'",
-               event_query(category="auth", event_type="info"), 1),
+        expect(
+            "category='auth', event_type='info'", event_query(category="auth", event_type="info"), 1
+        ),
         expect("created_by='bob'", event_query(created_by="bob"), 2),
         # data= is a SUBSTRING match against the stored JSON text, not equality.
         expect("data='INV-1234' (substring)", event_query(data="INV-1234"), 1),
@@ -127,12 +128,16 @@ def main() -> None:
         # Empty string is a real filter: rows whose column is ''.
         expect("sub_category='' (empty, not unfiltered)", event_query(sub_category=""), 3),
         expect("limit=2", event_query(limit=2), 2),
-        expect("order_by='app' then '-event_code'",
-               event_query(order_by=["app", "-event_code"]), 5),
+        expect(
+            "order_by='app' then '-event_code'", event_query(order_by=["app", "-event_code"]), 5
+        ),
         expect("today (created_at=date.today())", event_query(created_at=date.today()), 5),
         expect("from yesterday", event_query(from_created_at=NOW - timedelta(days=1)), 5),
-        expect("to yesterday (should be empty)",
-               event_query(to_created_at=(NOW - timedelta(days=1)).date()), 0),
+        expect(
+            "to yesterday (should be empty)",
+            event_query(to_created_at=(NOW - timedelta(days=1)).date()),
+            0,
+        ),
         expect("entity_model='Invoice'", event_query(entity_model="Invoice"), 1),
         expect("no match", event_query(app="nope"), 0),
     ]
@@ -145,11 +150,12 @@ def main() -> None:
     print("\n=== errors that should be raised ===")
     for label, call in (
         ("data={'invoice': ...} (dict, not str)", lambda: event_query(data={"invoice": "x"})),
-        ("created_at + from_created_at together",
-         lambda: event_query(created_at=date.today(), from_created_at=date.today())),
+        (
+            "created_at + from_created_at together",
+            lambda: event_query(created_at=date.today(), from_created_at=date.today()),
+        ),
         ("order_by='drop table'", lambda: event_query(order_by="drop table")),
-        ("order_by={'app', 'category'} (a set)",
-         lambda: event_query(order_by={"app", "category"})),
+        ("order_by={'app', 'category'} (a set)", lambda: event_query(order_by={"app", "category"})),
         ("bare delete_events() (no filter)", delete_events),
     ):
         try:
