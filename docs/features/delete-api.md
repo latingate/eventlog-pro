@@ -5,7 +5,8 @@ exists for: "drop anything older than 90 days", as one bounded, repeatable call.
 
 It is built **on** the read API's filter layer rather than beside it, so one
 filter implementation serves both and a caller can see what a delete will take.
-The filter arguments are documented once, in [read-api.md](read-api.md#filters).
+The filter arguments are documented once, in [read-api.md](read-api.md#filters);
+which store it reaches is settled by [configuration.md](configuration.md).
 
 ## Public surface
 

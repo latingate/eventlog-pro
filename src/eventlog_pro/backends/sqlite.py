@@ -1,6 +1,6 @@
 """SQLite backend — stdlib only, the default destination.
 
-``sqlite:///./events.db``  ·  ``sqlite:////var/log/events.db``  ·
+``sqlite:///./eventlog-pro.db``  ·  ``sqlite:////var/log/events.db``  ·
 ``sqlite://:memory:``
 
 Query options: ``?table=``, ``?timeout=`` (seconds, default 5),

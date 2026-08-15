@@ -5,7 +5,7 @@ database driver. Backends are resolved lazily, by DSN scheme, on first write.
 
     import eventlog_pro
 
-    eventlog_pro.configure(dsn="sqlite:///./events.db")
+    eventlog_pro.configure(dsn="sqlite:///./eventlog-pro.db")
     eventlog_pro.log_event(app="api", category="webhook", event_code="RECEIVED")
 """
 

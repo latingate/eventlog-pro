@@ -1,7 +1,8 @@
 # Read API — `event_query()`
 
 Reads stored events back, in both modes, without the caller knowing which
-backend is configured. The filter layer it is built on is shared with
+backend is configured (see [configuration.md](configuration.md)). The filter
+layer it is built on is shared with
 [delete-api.md](delete-api.md), so a query can preview a delete.
 
 ## Public surface

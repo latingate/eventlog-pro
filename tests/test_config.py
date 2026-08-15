@@ -4,12 +4,19 @@ from __future__ import annotations
 
 import dataclasses
 import logging
+from pathlib import Path
 
 import pytest
 
 import eventlog_pro
 from eventlog_pro import ConfigurationError, configure, get_settings, reset
-from eventlog_pro.config import DEFAULT_DSN, get_backend, is_configured
+from eventlog_pro.config import (
+    DEFAULT_DSN,
+    LEGACY_DEFAULT_FILENAME,
+    get_backend,
+    is_configured,
+)
+from eventlog_pro.dsn import parse_dsn
 
 
 def test_defaults():
@@ -96,18 +103,52 @@ def test_backend_override_beats_the_dsn_scheme():
 
 
 def test_unconfigured_dsn_warns_once_naming_the_file(caplog, tmp_path, monkeypatch):
-    monkeypatch.chdir(tmp_path)  # the fallback drops events.db in the CWD
+    monkeypatch.chdir(tmp_path)  # the fallback drops the file in the CWD
     with caplog.at_level(logging.WARNING, logger="eventlog_pro"):
         configure(dsn="memory://")  # not the default -> silent
         get_backend()
         assert caplog.records == []
 
         reset()
-        get_backend()  # falls back to ./events.db
+        get_backend()  # falls back to ./eventlog-pro.db
     messages = [r.getMessage() for r in caplog.records]
     assert len(messages) == 1
-    assert "events.db" in messages[0]
+    assert "eventlog-pro.db" in messages[0]
     assert "EVENTLOG_DSN" in messages[0]
+
+
+def test_the_warning_names_the_file_the_backend_actually_creates(tmp_path, monkeypatch):
+    """DEFAULT_DSN and the warned-about path must not drift apart."""
+    monkeypatch.chdir(tmp_path)
+    reset()
+    get_backend().write(eventlog_pro.build_event(category="c", event_code="E"))
+    created = [p.name for p in tmp_path.iterdir() if p.suffix == ".db"]
+    assert created == [Path(parse_dsn(DEFAULT_DSN).database).name]
+
+
+def test_an_old_events_db_is_named_and_left_alone(caplog, tmp_path, monkeypatch):
+    """Upgrading into the 0.2.0 rename must not silently abandon the old log."""
+    monkeypatch.chdir(tmp_path)
+    legacy = tmp_path / LEGACY_DEFAULT_FILENAME
+    legacy.write_bytes(b"not really a database")
+
+    reset()
+    with caplog.at_level(logging.WARNING, logger="eventlog_pro"):
+        get_backend().write(eventlog_pro.build_event(category="c", event_code="E"))
+
+    messages = [r.getMessage() for r in caplog.records]
+    assert len(messages) == 2
+    assert LEGACY_DEFAULT_FILENAME in messages[1]
+    assert "eventlog-pro.db" in messages[1]
+    assert legacy.read_bytes() == b"not really a database"  # untouched
+
+
+def test_no_legacy_warning_when_there_is_no_old_file(caplog, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    reset()
+    with caplog.at_level(logging.WARNING, logger="eventlog_pro"):
+        get_backend()
+    assert len(caplog.records) == 1
 
 
 def test_settings_are_immutable():

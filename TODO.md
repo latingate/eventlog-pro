@@ -115,26 +115,18 @@ email as one supplied callback?
 
 ## Defaults and messages
 
-- **Rename the default SQLite file from `events.db` to `eventlog-pro.db`.**
-  `DEFAULT_DSN` is `sqlite:///./events.db` (`config.py:30`), which is generic
-  enough to collide with another tool's file in the same directory; the new name
-  matches the package. Roughly 25 references outside `.venv/`: `config.py:30` and `:191`,
-  `dsn.py:9-10, 100, 148`, `backends/sqlite.py:3`, `__init__.py:8`,
-  `README.md:79, 125, 184, 197`, `ci.yml:184`, six spots in `tests/`, and the
-  historical mentions in plan 001 — leave the plans alone, they record what was
-  true at the time. This changes behaviour for anyone relying on the default, so
-  it belongs in a minor release with a CHANGELOG note, not a patch.
 - **The fallback warning claims it will create a file that may already exist.**
-  Second and later runs print "…which will create C:\…\events.db" about a file
-  it is merely reusing — verified 2026-08-14. `_warn_if_default_dsn`
-  (`config.py:180-192`) fires before the backend is built and never checks for
+  Second and later runs print "…which will create C:\…\eventlog-pro.db" about a
+  file it is merely reusing — verified 2026-08-14. `_warn_if_default_dsn`
+  (`config.py:180-208`) fires before the backend is built and never checks for
   the file. Fix: record whether the path existed, then log after
   `ensure_schema()` succeeds — "created X" or "using the existing X" — so the
   message is accurate in both cases and only appears once the write path
   actually worked. A second "database created" message was considered and
   rejected: one warning per process is already the right amount of noise, and
-  success is observable from the file itself. `tests/test_config.py:99-109`
-  asserts on this text and would need updating.
+  success is observable from the file itself. `tests/test_config.py` asserts on
+  this text and would need updating. Cheaper since 0.2.0: the same function now
+  does an `exists()` check for the legacy `events.db`, so the pattern is there.
 
 ## Housekeeping
 

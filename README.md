@@ -78,7 +78,7 @@ Notes:
 import eventlog_pro
 from eventlog_pro import log_event
 
-eventlog_pro.configure(dsn="sqlite:///./events.db")   # once, at startup
+eventlog_pro.configure(dsn="sqlite:///./eventlog-pro.db")   # once, at startup
 
 event = log_event(app="api", category="system", event_code="STARTUP")
 print(event.id)
@@ -141,7 +141,7 @@ returned before); in pure mode, an `Event` dataclass. Both expose `.id`, `.app`,
 
 | DSN | Backend | Extra |
 |---|---|---|
-| `sqlite:///./events.db` · `sqlite:////abs/path.db` · `sqlite://:memory:` | SQLite | none |
+| `sqlite:///./eventlog-pro.db` · `sqlite:////abs/path.db` · `sqlite://:memory:` | SQLite | none |
 | `postgresql://u:pw@host:5432/db` · `postgres://…` | PostgreSQL | `[postgres]` |
 | `mysql://u:pw@host:3306/db` · `mariadb://…` | MySQL/MariaDB | `[mysql]` |
 | `jsonl:///./events.jsonl` | JSON Lines | none |
@@ -277,7 +277,7 @@ a deploy. `EVENTLOG_DSN=null://` turns logging off entirely.
 
 | Setting | `configure()` | Env var | `EVENTLOG_PRO` key | Default |
 |---|---|---|---|---|
-| DSN | `dsn` | `EVENTLOG_DSN` | — | `sqlite:///./events.db` |
+| DSN | `dsn` | `EVENTLOG_DSN` | — | `sqlite:///./eventlog-pro.db` |
 | Table | `table` | `EVENTLOG_TABLE` | `TABLE` | `eventlog_eventlog` |
 | Backend override | `backend` | `EVENTLOG_BACKEND` | — | `None` |
 | Raise on error | `raise_on_error` | `EVENTLOG_SILENT` (inverted) | `RAISE_ON_ERROR` | `True` |
@@ -290,7 +290,9 @@ import time; the first `log_event()` resolves the backend and runs
 backend, and `reset()` tears everything down — both safe in tests.
 
 If nothing is configured anywhere, the package logs a one-time warning naming
-the `events.db` file it is about to create.
+the `eventlog-pro.db` file it is about to create. If an `events.db` from before
+0.2.0 is in the same directory, it says so too — that file is left alone, and
+`configure(dsn="sqlite:///./events.db")` keeps using it.
 
 ### `.env` files
 

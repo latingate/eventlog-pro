@@ -27,7 +27,11 @@ __all__ = ["Settings", "configure", "get_settings", "get_backend", "reset", "is_
 
 logger = logging.getLogger("eventlog_pro")
 
-DEFAULT_DSN = "sqlite:///./events.db"
+DEFAULT_DSN = "sqlite:///./eventlog-pro.db"
+
+#: The default filename before 0.2.0. Only used to warn a user upgrading into
+#: the rename that their old file is still there — see ``_warn_if_default_dsn``.
+LEGACY_DEFAULT_FILENAME = "events.db"
 
 #: Setting name → environment variable.
 ENV_VARS: dict[str, str] = {
@@ -183,13 +187,31 @@ def _warn_if_default_dsn(settings: Settings, parsed: ParsedDSN) -> None:
     if _warned_default_dsn or settings.dsn_source != "default" or settings.backend:
         return
     _warned_default_dsn = True
+    # The fallback filename comes from DEFAULT_DSN rather than a literal, so the
+    # file named here is always the file the backend goes on to open.
+    target = Path(parsed.database or parse_dsn(DEFAULT_DSN).database or "").resolve()
     logger.warning(
         "eventlog_pro is not configured; falling back to %s, which will create "
         "%s. Set EVENTLOG_DSN or call eventlog_pro.configure(dsn=...) to choose "
         "a destination.",
         redact(settings.dsn),
-        Path(parsed.database or "events.db").resolve(),
+        target,
     )
+
+    # Upgrading into the 0.2.0 rename: the previous default is sitting in the
+    # same directory and would otherwise be silently abandoned.
+    legacy = target.with_name(LEGACY_DEFAULT_FILENAME)
+    if legacy != target and legacy.exists():
+        logger.warning(
+            "eventlog_pro found %s, the default before 0.2.0. It is untouched, "
+            "and new events go to %s instead. To keep using the old file, set "
+            "EVENTLOG_DSN=sqlite:///./%s or call "
+            "eventlog_pro.configure(dsn='sqlite:///./%s').",
+            legacy,
+            target.name,
+            LEGACY_DEFAULT_FILENAME,
+            LEGACY_DEFAULT_FILENAME,
+        )
 
 
 def _from_env() -> Settings:

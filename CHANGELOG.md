@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-08-15
+
 ### Added
 
 - **A read API: `event_query(**filters) -> list[Event]`.** Backend-agnostic, and
@@ -27,8 +29,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   inverse of the write path, which 0.1.0 had no need for. Timestamps always come
   back tz-aware UTC, and parsing tolerates rows written by Django rather than by
   this package.
-- Feature documentation at `docs/features/read-api.md` and
-  `docs/features/delete-api.md`.
+- Feature documentation at `docs/features/read-api.md`,
+  `docs/features/delete-api.md` and `docs/features/configuration.md`.
+
+### Changed
+
+- **The default SQLite file is now `./eventlog-pro.db`, was `./events.db`.**
+  Only affects callers relying on the default: if you set `EVENTLOG_DSN` or call
+  `configure(dsn=...)`, nothing changes. `events.db` was generic enough to
+  collide with another tool's file in the same directory; the new name matches
+  the package.
+
+  **Your old file is not touched, moved or read.** Events logged after upgrading
+  go to the new file, so an existing `events.db` stops growing. To keep using
+  it, name it explicitly:
+
+  ```python
+  eventlog_pro.configure(dsn="sqlite:///./events.db")   # or EVENTLOG_DSN=sqlite:///./events.db
+  ```
+
+  When the unconfigured fallback fires and an `events.db` is sitting in the same
+  directory, the package now logs a second warning naming it, so the change is
+  not silent. Adopting the old file automatically was rejected: it would make
+  the default depend on directory contents, so two machines running identical
+  code would write to different files.
 
 ### Decisions worth knowing
 
@@ -146,5 +170,6 @@ Each of these is a decision, not an accident.
   `from eventlog.utils.eventlog_utilities import log_event` is a one-token edit.
   Scheduled for removal in 1.0.
 
-[Unreleased]: https://github.com/latingate/eventlog-pro/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/latingate/eventlog-pro/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/latingate/eventlog-pro/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/latingate/eventlog-pro/releases/tag/v0.1.0
