@@ -30,7 +30,7 @@ logger = logging.getLogger("eventlog_pro")
 DEFAULT_DSN = "sqlite:///./eventlog-pro.db"
 
 #: The default filename before 0.2.0. Only used to warn a user upgrading into
-#: the rename that their old file is still there — see ``_warn_if_default_dsn``.
+#: the rename that their old file is still there — see ``_warn_default_dsn``.
 LEGACY_DEFAULT_FILENAME = "events.db"
 
 #: Setting name → environment variable.
@@ -143,7 +143,10 @@ def get_backend() -> Backend:
 
         settings = get_settings()
         parsed = _parsed_dsn(settings)
-        _warn_if_default_dsn(settings, parsed)
+        # Sampled before anything opens the file and reported after: only that
+        # order knows whether the warning should say "created" or "reusing".
+        target = _default_dsn_target(settings, parsed)
+        existed = target.exists() if target is not None else False
 
         backend_class = get_backend_class(settings.backend or parsed.scheme)
         backend = backend_class(parsed, settings)
@@ -152,6 +155,8 @@ def get_backend() -> Backend:
         except Exception:
             backend.close()
             raise
+        if target is not None:
+            _warn_default_dsn(settings, target, existed=existed)
         _backend = backend
         return backend
 
@@ -181,18 +186,44 @@ def _parsed_dsn(settings: Settings) -> ParsedDSN:
     return parsed
 
 
-def _warn_if_default_dsn(settings: Settings, parsed: ParsedDSN) -> None:
-    """Warn once before dropping a SQLite file nobody asked for."""
-    global _warned_default_dsn
+def _default_dsn_target(settings: Settings, parsed: ParsedDSN) -> Path | None:
+    """The SQLite file the unconfigured fallback will use, or ``None``.
+
+    ``None`` means there is nothing to warn about — the DSN was chosen by the
+    caller, a backend override is in force, or the warning already fired — so a
+    configured path never pays for the ``exists()`` check in
+    :func:`get_backend`.
+    """
     if _warned_default_dsn or settings.dsn_source != "default" or settings.backend:
-        return
-    _warned_default_dsn = True
+        return None
     # The fallback filename comes from DEFAULT_DSN rather than a literal, so the
     # file named here is always the file the backend goes on to open.
-    target = Path(parsed.database or parse_dsn(DEFAULT_DSN).database or "").resolve()
+    return Path(parsed.database or parse_dsn(DEFAULT_DSN).database or "").resolve()
+
+
+def _warn_default_dsn(settings: Settings, target: Path, *, existed: bool) -> None:
+    """Warn once about a SQLite file nobody asked for.
+
+    Called only once the schema attempt has succeeded, so the warning never
+    announces a file that failed to open. *existed* was sampled before anything
+    touched the path; together with ``target.exists()`` now it says whether the
+    file was created, was already there, or is still deferred to the first
+    write — the last being what ``auto_create_table=False`` means.
+    """
+    global _warned_default_dsn
+    _warned_default_dsn = True
+
+    if existed:
+        outcome = "is using the existing %s"
+    elif target.exists():
+        outcome = "created %s"
+    else:
+        outcome = "will create %s"
+
     logger.warning(
-        "eventlog_pro is not configured; falling back to %s, which will create "
-        "%s. Set EVENTLOG_DSN or call eventlog_pro.configure(dsn=...) to choose "
+        "eventlog_pro is not configured; falling back to %s, which "
+        + outcome
+        + ". Set EVENTLOG_DSN or call eventlog_pro.configure(dsn=...) to choose "
         "a destination.",
         redact(settings.dsn),
         target,

@@ -9,7 +9,8 @@ from pathlib import Path
 import pytest
 
 import eventlog_pro
-from eventlog_pro import ConfigurationError, configure, get_settings, reset
+from eventlog_pro import BackendError, ConfigurationError, configure, get_settings, reset
+from eventlog_pro.backends.sqlite import SQLiteBackend
 from eventlog_pro.config import (
     DEFAULT_DSN,
     LEGACY_DEFAULT_FILENAME,
@@ -102,7 +103,7 @@ def test_backend_override_beats_the_dsn_scheme():
     assert type(backend).__name__ == "NullBackend"
 
 
-def test_unconfigured_dsn_warns_once_naming_the_file(caplog, tmp_path, monkeypatch):
+def test_unconfigured_dsn_warns_once_naming_the_file_it_created(caplog, tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)  # the fallback drops the file in the CWD
     with caplog.at_level(logging.WARNING, logger="eventlog_pro"):
         configure(dsn="memory://")  # not the default -> silent
@@ -115,6 +116,10 @@ def test_unconfigured_dsn_warns_once_naming_the_file(caplog, tmp_path, monkeypat
     assert len(messages) == 1
     assert "eventlog-pro.db" in messages[0]
     assert "EVENTLOG_DSN" in messages[0]
+    # The file was not there a moment ago, so the warning must say so rather
+    # than the "will create" it used to claim on every run alike.
+    assert "created" in messages[0]
+    assert "will create" not in messages[0]
 
 
 def test_the_warning_names_the_file_the_backend_actually_creates(tmp_path, monkeypatch):
@@ -149,6 +154,62 @@ def test_no_legacy_warning_when_there_is_no_old_file(caplog, tmp_path, monkeypat
     with caplog.at_level(logging.WARNING, logger="eventlog_pro"):
         get_backend()
     assert len(caplog.records) == 1
+
+
+def test_a_second_run_says_it_is_reusing_the_file(caplog, tmp_path, monkeypatch):
+    """The warning must not claim to create a file that is already there."""
+    monkeypatch.chdir(tmp_path)
+    with caplog.at_level(logging.WARNING, logger="eventlog_pro"):
+        reset()
+        get_backend()  # creates ./eventlog-pro.db
+        reset()  # a fresh process, as far as the warning latch is concerned
+        get_backend()  # the file is now sitting there
+
+    messages = [r.getMessage() for r in caplog.records]
+    assert len(messages) == 2
+    assert "created" in messages[0]
+    assert "is using the existing" in messages[1]
+    assert "eventlog-pro.db" in messages[1]
+    assert "created" not in messages[1]
+
+
+def test_a_deferred_file_is_not_claimed_as_created(caplog, tmp_path, monkeypatch):
+    """With auto_create_table off nothing is written until the first write."""
+    monkeypatch.chdir(tmp_path)
+    reset()
+    with caplog.at_level(logging.WARNING, logger="eventlog_pro"):
+        configure(auto_create_table=False)  # no dsn=, so the DSN is still the default
+        get_backend()
+
+    messages = [r.getMessage() for r in caplog.records]
+    assert len(messages) == 1
+    assert "will create" in messages[0]
+    assert not (tmp_path / "eventlog-pro.db").exists()
+
+
+def test_a_failed_schema_attempt_does_not_consume_the_warning(caplog, tmp_path, monkeypatch):
+    """The latch belongs to the warning, not to the attempt that preceded it."""
+    monkeypatch.chdir(tmp_path)
+    reset()
+
+    def boom(self):
+        raise BackendError("no schema for you")
+
+    # Restored by hand rather than with monkeypatch.undo(), which would also
+    # undo the chdir above and drop the retry's file in the repository root.
+    original = SQLiteBackend.create_schema
+    monkeypatch.setattr(SQLiteBackend, "create_schema", boom)
+    with caplog.at_level(logging.WARNING, logger="eventlog_pro"):
+        with pytest.raises(BackendError):
+            get_backend()
+        # Nothing was created, so nothing is announced.
+        assert caplog.records == []
+
+        monkeypatch.setattr(SQLiteBackend, "create_schema", original)
+        get_backend()
+
+    assert len(caplog.records) == 1
+    assert "created" in caplog.records[0].getMessage()
 
 
 def test_settings_are_immutable():

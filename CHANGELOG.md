@@ -15,6 +15,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
      Check whether a TestPyPI rehearsal applies (step 5):
      git diff --stat "$(git describe --tags --abbrev=0)..HEAD" -- pyproject.toml README.md -->
 
+## [0.2.2] - 2026-08-16
+
+### Fixed
+
+- **The unconfigured-fallback warning no longer claims to create a file that is
+  already there.** It now says `created <path>`, `is using the existing <path>`,
+  or `will create <path>` — the last when `auto_create_table=False` defers the
+  file to the first write. Only the wording of one `logging` warning changes; no
+  API, default or stored data is affected.
+- **That warning is no longer emitted when the database cannot be opened.** It
+  fired before the backend was even constructed, so a failed `ensure_schema()`
+  still announced a file that never appeared. It now follows a successful schema
+  step, and a failure raises `BackendError` — which names the path itself.
+- **A failed schema attempt no longer consumes the one-per-process warning.**
+  The latch was set before the attempt, so a later retry in the same process was
+  silently un-warned.
+- **Two README links now resolve on the PyPI project page.** `CHANGELOG.md` and
+  `LICENSE` were relative, which 404s in the rendered long description; they are
+  absolute GitHub URLs now, matching the existing convention.
+
+### Documentation
+
+- `docs/features/configuration.md` documents all three warning wordings and the
+  fact that the warning follows the schema step.
+
 ## [0.2.1] - 2026-08-15
 
 Documentation only. **No behaviour changed and no DSN was removed** — the sole
@@ -203,7 +228,8 @@ Each of these is a decision, not an accident.
   `from eventlog.utils.eventlog_utilities import log_event` is a one-token edit.
   Scheduled for removal in 1.0.
 
-[Unreleased]: https://github.com/latingate/eventlog-pro/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/latingate/eventlog-pro/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/latingate/eventlog-pro/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/latingate/eventlog-pro/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/latingate/eventlog-pro/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/latingate/eventlog-pro/releases/tag/v0.1.0

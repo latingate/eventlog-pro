@@ -109,21 +109,6 @@ email as one supplied callback?
   import. `.env` already works without it (see README, *`.env` files*), so this
   is convenience only, and it must not touch the base install.
 
-## Defaults and messages
-
-- **The fallback warning claims it will create a file that may already exist.**
-  Second and later runs print "…which will create C:\…\eventlog-pro.db" about a
-  file it is merely reusing — verified 2026-08-14. `_warn_if_default_dsn`
-  (`config.py:180-208`) fires before the backend is built and never checks for
-  the file. Fix: record whether the path existed, then log after
-  `ensure_schema()` succeeds — "created X" or "using the existing X" — so the
-  message is accurate in both cases and only appears once the write path
-  actually worked. A second "database created" message was considered and
-  rejected: one warning per process is already the right amount of noise, and
-  success is observable from the file itself. `tests/test_config.py` asserts on
-  this text and would need updating. Cheaper since 0.2.0: the same function now
-  does an `exists()` check for the legacy `events.db`, so the pattern is there.
-
 ## Housekeeping
 
 - Local development resolves to Django 6.1 (the extra is `Django>=4.2`) while CI
