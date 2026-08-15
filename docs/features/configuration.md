@@ -95,9 +95,23 @@ exception message.
 ## The unconfigured fallback
 
 With nothing configured anywhere, the default DSN applies and the package logs
-one warning per process naming the absolute path of the file it is about to
-create. The path in that warning is derived from `DEFAULT_DSN` rather than
-written out a second time, so the file named is always the file opened.
+one warning per process naming the absolute path of the file it is using. The
+path in that warning is derived from `DEFAULT_DSN` rather than written out a
+second time, so the file named is always the file opened.
+
+The warning says which of three things happened, because claiming to create a
+file that was already there is how it read before 0.2.2:
+
+| Wording | When |
+|---|---|
+| `created <path>` | the file was not there and now is |
+| `is using the existing <path>` | it was already there |
+| `will create <path>` | it is still to be created, on the first write — what `auto_create_table=False` means |
+
+Existence is sampled before anything opens the path and reported afterwards, so
+the warning is emitted only once the schema step has succeeded. A run that fails
+to open the database therefore raises `BackendError` — which names the path
+itself — instead of first announcing a file that never appears.
 
 ### The 0.2.0 rename
 
@@ -122,6 +136,7 @@ identical code would write to different files.
 ## Tests
 
 `tests/test_config.py` covers precedence, re-configuration, unknown keywords,
-the fallback warning, and that `DEFAULT_DSN` and the warned-about path cannot
-drift apart. `tests/test_dsn.py` covers parsing. Django-mode settings live in
+the fallback warning in all three of its wordings, that a failed schema attempt
+does not consume the one-per-process warning, and that `DEFAULT_DSN` and the
+warned-about path cannot drift apart. `tests/test_dsn.py` covers parsing. Django-mode settings live in
 `tests/django_mode/test_conf_and_checks.py`.

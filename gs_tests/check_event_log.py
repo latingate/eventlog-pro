@@ -7,18 +7,20 @@ file the backend actually goes on to create, then check the file appears:
     python check_event_log.py
 
 Writes ./eventlog-pro.db in the working directory (the default since 0.2.0 --
-see .claude/plans/007-2026-08-15-default-sqlite-filename-rename.md). Delete it
-between runs to see the create path rather than the reuse path.
+see .claude/plans/007-2026-08-15-default-sqlite-filename-rename.md). Run it
+twice: the warning should describe the file differently each time.
 
 Expected on a first run, on stderr:
 
     eventlog_pro is not configured; falling back to sqlite:///./eventlog-pro.db,
-    which will create <cwd>\\eventlog-pro.db. Set EVENTLOG_DSN or call
+    which created <cwd>\\eventlog-pro.db. Set EVENTLOG_DSN or call
     eventlog_pro.configure(dsn=...) to choose a destination.
 
-Note the warning says "will create" on every run, including ones that merely
-reuse an existing file -- a known rough edge recorded in TODO.md under
-"Defaults and messages".
+and on every run after that, with the file already in place:
+
+    eventlog_pro is not configured; falling back to sqlite:///./eventlog-pro.db,
+    which is using the existing <cwd>\\eventlog-pro.db. Set EVENTLOG_DSN or call
+    eventlog_pro.configure(dsn=...) to choose a destination.
 """
 
 from eventlog_pro import log_event

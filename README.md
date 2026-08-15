@@ -313,9 +313,10 @@ import time; the first `log_event()` resolves the backend and runs
 backend, and `reset()` tears everything down — both safe in tests.
 
 If nothing is configured anywhere, the package logs a one-time warning naming
-the `eventlog-pro.db` file it is about to create. If an `events.db` from before
-0.2.0 is in the same directory, it says so too — that file is left alone, and
-`configure(dsn="sqlite:///./events.db")` keeps using it.
+the absolute path of the `eventlog-pro.db` file it uses, and saying whether it
+created that file or is reusing one that was already there. If an `events.db`
+from before 0.2.0 is in the same directory, it says so too — that file is left
+alone, and `configure(dsn="sqlite:///./events.db")` keeps using it.
 
 ### `.env` files
 
@@ -445,8 +446,8 @@ and fake `0002`.
 - Changing `TABLE` after the app has loaded does not move the table or generate
   a rename; the `eventlog_pro.W001` check reports the drift.
 
-See [CHANGELOG.md](CHANGELOG.md) for the full list of deliberate deviations from
-the app this package replaced.
+See [CHANGELOG.md](https://github.com/latingate/eventlog-pro/blob/main/CHANGELOG.md)
+for the full list of deliberate deviations from the app this package replaced.
 
 ## Development
 
@@ -464,4 +465,4 @@ EVENTLOG_TEST_MYSQL_DSN=mysql://root:secret@localhost:33306/evp pytest
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT — see [LICENSE](https://github.com/latingate/eventlog-pro/blob/main/LICENSE).
