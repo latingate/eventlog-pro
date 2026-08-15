@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+<!-- RELEASING: rename this heading to "## [<version>] - YYYY-MM-DD" and add a
+     fresh empty "## [Unreleased]" above it. Nothing automates this; publish.yml
+     never reads this file, so a forgotten rename ships release notes headed
+     "Unreleased", permanently. Full checklist:
+     .claude/plans/005-2026-08-14-releasing-a-new-version.md step 3.
+     Note: this cycle already touches README.md, so step 5's TestPyPI rehearsal
+     applies. -->
+
 ### Documentation
 
 - **`jsonl://` is documented as an export format, not a general-purpose
