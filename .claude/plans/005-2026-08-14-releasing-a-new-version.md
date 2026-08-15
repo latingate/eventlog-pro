@@ -131,8 +131,25 @@ publishing it".
    `events.db` rename — [plan 007](007-2026-08-15-default-sqlite-filename-rename.md)
    — is exactly this case.
 
-3. **Update `CHANGELOG.md`.** New section for the version, dated, grouped into
-   Added / Changed / Fixed. Users read this to decide whether to upgrade.
+3. **Update `CHANGELOG.md`.** Users read this to decide whether to upgrade.
+
+   Entries accumulate under `## [Unreleased]` as work merges, so at release
+   time the job is usually **renaming that heading**, not writing it from
+   scratch:
+
+   - Change `## [Unreleased]` to `## [<version>] - YYYY-MM-DD`.
+   - Add a fresh, empty `## [Unreleased]` above it for the next cycle.
+   - Check the groupings are Added / Changed / Fixed / Documentation.
+
+   Nothing automates this. `publish.yml` never reads `CHANGELOG.md`, so a
+   forgotten rename ships a released version whose notes are headed
+   "Unreleased" — cosmetic, but permanent, because the upload cannot be
+   replaced.
+
+   To see what is waiting:
+   ```powershell
+   git log --oneline "$(git describe --tags --abbrev=0)..HEAD"
+   ```
 
 4. **Verify the build before tagging.**
    ```powershell
@@ -146,6 +163,14 @@ publishing it".
    modules under `src/eventlog_pro/` are not a packaging change; the wheel takes
    the whole package directory, so they ship without any config edit. Skip this
    step for a pure code release with green CI.
+
+   Do not decide this from memory — ask git, since `README.md` is the easiest
+   one to change without thinking of it as packaging:
+   ```powershell
+   git diff --stat "$(git describe --tags --abbrev=0)..HEAD" -- pyproject.toml README.md
+   ```
+   Any output means this release warrants a rehearsal.
+
    ```powershell
    .\.venv\Scripts\python.exe -m twine upload --repository testpypi dist/*
    ```
