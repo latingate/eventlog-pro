@@ -1,6 +1,7 @@
 # Document `jsonl://` as a niche, not-recommended backend
 
-Status: active — open questions answered 2026-08-15 (1 / 1 / 1 / 2), awaiting approval to execute
+Status: active — steps 1-8 executed on branch `docs/jsonl-not-recommended`
+(commit `e6be760`); done once the PR merges
 Owner: Gal Sarig
 Last updated: 2026-08-15
 
