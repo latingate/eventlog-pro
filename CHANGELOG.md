@@ -12,8 +12,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
      never reads this file, so a forgotten rename ships release notes headed
      "Unreleased", permanently. Full checklist:
      .claude/plans/005-2026-08-14-releasing-a-new-version.md step 3.
-     Note: this cycle already touches README.md, so step 5's TestPyPI rehearsal
-     applies. -->
+     Check whether a TestPyPI rehearsal applies (step 5):
+     git diff --stat "$(git describe --tags --abbrev=0)..HEAD" -- pyproject.toml README.md -->
+
+## [0.2.1] - 2026-08-15
+
+Documentation only. **No behaviour changed and no DSN was removed** — the sole
+code edit is a module docstring. Upgrading from 0.2.0 requires nothing.
 
 ### Documentation
 
@@ -198,6 +203,7 @@ Each of these is a decision, not an accident.
   `from eventlog.utils.eventlog_utilities import log_event` is a one-token edit.
   Scheduled for removal in 1.0.
 
-[Unreleased]: https://github.com/latingate/eventlog-pro/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/latingate/eventlog-pro/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/latingate/eventlog-pro/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/latingate/eventlog-pro/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/latingate/eventlog-pro/releases/tag/v0.1.0

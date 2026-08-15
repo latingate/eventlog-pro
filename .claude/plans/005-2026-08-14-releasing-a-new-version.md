@@ -140,6 +140,13 @@ publishing it".
    - Change `## [Unreleased]` to `## [<version>] - YYYY-MM-DD`.
    - Add a fresh, empty `## [Unreleased]` above it for the next cycle.
    - Check the groupings are Added / Changed / Fixed / Documentation.
+   - **Update the link refs at the bottom of the file.** `[Unreleased]` must
+     compare from the new tag, and the new version needs its own line:
+     ```
+     [Unreleased]: .../compare/v<new>...HEAD
+     [<new>]: .../compare/v<previous>...v<new>
+     ```
+     Easy to miss, because nothing renders differently until the tag exists.
 
    Nothing automates this. `publish.yml` never reads `CHANGELOG.md`, so a
    forgotten rename ships a released version whose notes are headed
