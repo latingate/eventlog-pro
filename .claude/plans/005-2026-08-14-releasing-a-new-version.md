@@ -89,9 +89,12 @@ publishing it".
    it needs no upload and no account, and it builds the same wheel PyPI would.
    Plan 004 is the worked example.
 
-4. **Push the branch.** CI runs the full matrix — Python 3.10–3.13, Django 4.2
-   and 5.2, real PostgreSQL and MySQL containers — on every push, with no
-   release involved. This is where cross-version problems surface.
+4. **Open a PR.** `ci.yml` triggers on `pull_request` and on pushes to `main` —
+   **not** on pushes to a feature branch, so a branch push alone runs nothing.
+   The PR is what starts the full matrix: Python 3.10–3.13, Django 4.2 and 5.2,
+   real PostgreSQL and MySQL containers, with no release involved. This is where
+   cross-version problems surface, and it is the only place the PostgreSQL and
+   MySQL tests run at all — they skip locally unless their DSNs are set.
 
 ## Where old versions live
 

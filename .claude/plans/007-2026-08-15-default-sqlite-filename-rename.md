@@ -1,6 +1,6 @@
 # Rename the default SQLite file to `eventlog-pro.db`
 
-Status: active
+Status: done — shipped in 0.2.0 on 2026-08-15
 Owner: Gal Sarig
 Last updated: 2026-08-15
 

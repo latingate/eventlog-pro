@@ -1,6 +1,8 @@
 # Read and delete APIs (`event_query()` / `delete_events()`)
 
-Created by: Gal Sarig         Last updated: 2026-08-14
+Status: done — shipped in 0.2.0 on 2026-08-15
+Owner: Gal Sarig
+Last updated: 2026-08-15
 
 The first feature plan since the package shipped. It picks up the `## Read side`
 and `## Delete side` entries of [`TODO.md`](../../TODO.md) — recorded there as deliberate omissions from 0.1.0, not
