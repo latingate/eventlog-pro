@@ -15,6 +15,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
      Check whether a TestPyPI rehearsal applies (step 5):
      git diff --stat "$(git describe --tags --abbrev=0)..HEAD" -- pyproject.toml README.md -->
 
+### Changed
+
+- **The package summary no longer lists JSONL beside the three databases.** It
+  read "pure Python (SQLite/PostgreSQL/MySQL/JSONL)", which is the exact framing
+  0.2.1 removed from the README — and it is the more prominent of the two, being
+  the one-line description under the package name on PyPI, in search results and
+  in `pip show`. `jsonl://` is unchanged and still supported; see
+  [docs/features/jsonl-backend.md](https://github.com/latingate/eventlog-pro/blob/main/docs/features/jsonl-backend.md).
+  Note this only reaches PyPI when a version uploads — unlike the README, a
+  summary cannot be corrected in place.
+
 ## [0.2.2] - 2026-08-16
 
 ### Fixed

@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "eventlog-pro"
 dynamic = ["version"]
-description = "A tiny, dependency-free structured event log — pure Python (SQLite/PostgreSQL/MySQL/JSONL) or Django, one API, one table shape."
+description = "A tiny, dependency-free structured event log — pure Python (SQLite/PostgreSQL/MySQL) or Django, one API, one table shape."
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
