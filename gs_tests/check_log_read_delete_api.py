@@ -1,12 +1,12 @@
-"""Manual check of the read and delete APIs (event_query, delete_events).
+"""Manual check of the log, read and delete APIs (log_event, event_query, delete_events).
 
 Creates a throwaway SQLite database, writes a handful of events into it, then
 runs event_query() with different filters and prints what comes back, and
 finishes with a preview-then-delete pass through delete_events().
 
-    python check_read_delete_api.py             # fresh db each run (deleted first)
-    python check_read_delete_api.py --keep      # keep the db file to poke at it
-    python check_read_delete_api.py --db my.db  # use a specific file
+    python check_log_read_delete_api.py             # fresh db each run (deleted first)
+    python check_log_read_delete_api.py --keep      # keep the db file to poke at it
+    python check_log_read_delete_api.py --db my.db  # use a specific file
 
 Then open a REPL against the same file and try your own filters:
 
