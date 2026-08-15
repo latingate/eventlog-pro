@@ -17,6 +17,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The test suite refuses to run against a stale installed copy.** `src/` is
+  not on `sys.path`, so a non-editable install left over from an earlier version
+  shadows the working tree silently and the suite passes having exercised code
+  nobody edited. `tests/conftest.py` now compares the installed version against
+  `src/eventlog_pro/__about__.py` and aborts collection with the fix
+  (`pip install -e ".[dev]"`) when they disagree. Contributors only; nothing
+  ships in the wheel. Comparing versions rather than paths is what keeps CI's
+  deliberate non-editable install working.
 - **The package summary no longer lists JSONL beside the three databases.** It
   read "pure Python (SQLite/PostgreSQL/MySQL/JSONL)", which is the exact framing
   0.2.1 removed from the README — and it is the more prominent of the two, being

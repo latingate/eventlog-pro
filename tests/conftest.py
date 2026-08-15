@@ -7,13 +7,49 @@ core-only CI job (base install, zero dependencies) passes cleanly.
 from __future__ import annotations
 
 import os
+import re
 import sys
 from importlib.util import find_spec
+from pathlib import Path
 
 import pytest
 
 sys.path.insert(0, os.path.dirname(__file__))
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "django_settings")
+
+
+def _fail_on_a_stale_install() -> None:
+    """Refuse to run the suite against a copy of the package nobody edited.
+
+    ``src/`` is not on ``sys.path``, so ``import eventlog_pro`` resolves to
+    whatever is installed. A non-editable install left over from an earlier
+    version therefore shadows the working tree *in complete silence* — the
+    suite passes, having exercised code nobody wrote. This happened once, and
+    surfaced only because a new test happened to assert new behaviour.
+
+    CI installs non-editable deliberately, so that it tests the built package;
+    this compares versions rather than paths, which is true in both modes. It
+    cannot catch drift *within* one version — an editable install is still the
+    right way to develop — but it catches the case that actually bit.
+    """
+    about = Path(__file__).resolve().parent.parent / "src" / "eventlog_pro" / "__about__.py"
+    if not about.is_file():
+        return  # installed without the source tree; nothing to compare against
+    match = re.search(r'__version__\s*=\s*"([^"]+)"', about.read_text(encoding="utf-8"))
+    if match is None:  # pragma: no cover - only if __about__.py is restructured
+        return
+
+    import eventlog_pro
+
+    if eventlog_pro.__version__ != match.group(1):
+        raise RuntimeError(
+            f"tests would run against eventlog_pro {eventlog_pro.__version__} from "
+            f"{eventlog_pro.__file__}, but {about} says {match.group(1)}. An installed "
+            'copy is shadowing src/. Fix it with:  pip install -e ".[dev]"'
+        )
+
+
+_fail_on_a_stale_install()
 
 # The Django-mode tests live in `django_mode/`, not `django/`: this directory is
 # on sys.path, and a directory called `django` would shadow the real package as
