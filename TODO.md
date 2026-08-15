@@ -50,10 +50,6 @@ things that needed settling first, one was built and two were not:
 
 Also deferred:
 
-- **`delete_events()` for `jsonl://`**, which currently raises. Implementing it
-  means a read-filter-rewrite of the whole file under the existing lock; an
-  interrupted rewrite truncates a log that exists to be shipped elsewhere, which
-  is why it was not built first.
 - **A limited delete is not atomic** — it selects ids and then deletes them,
   because `DELETE ... LIMIT` is MySQL-only. Fine for retention batching, wrong
   for "delete exactly this set". Closing that would mean a transaction per

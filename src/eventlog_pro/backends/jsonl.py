@@ -5,6 +5,11 @@
 ``id`` stays ``None``: a file has no sequence, and inventing a counter would
 produce ids that collide across processes and restarts. Ship the file to a
 collector and let that assign identity.
+
+An export format, not a database, and not the backend to reach for by default:
+reads are a full file scan and ``delete()`` raises. ``sqlite://`` is the answer
+to "no database server" — stdlib, no dependency, and the whole API works. See
+``docs/features/jsonl-backend.md``.
 """
 
 from __future__ import annotations
