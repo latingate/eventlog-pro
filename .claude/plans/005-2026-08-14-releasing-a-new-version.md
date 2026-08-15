@@ -2,7 +2,7 @@
 
 Status: active
 Owner: Gal Sarig
-Last updated: 2026-08-14
+Last updated: 2026-08-15
 
 A standing checklist, not a one-off. Plan 002 released 0.1.0 and is `done`; this
 generalises what worked there so the next release does not have to rediscover
@@ -44,7 +44,7 @@ reaches users, and if something does, it is recoverable.
 - **Recommendation:** 1 — the rehearsal exists to catch packaging faults, and a
   pure code change with green CI cannot introduce one. Uploading to TestPyPI
   also burns the version number there, which makes a re-rehearsal awkward.
-- **Answer:** 
+- **Answer:** 1
 
 - **Question 2.** Where should day-to-day development happen?
 1. Feature branches off `main`, merged by PR.
@@ -52,7 +52,7 @@ reaches users, and if something does, it is recoverable.
 3. Other. Enter your own answer or follow up question.
 - **Recommendation:** 1 — CI runs on every push, and a branch keeps `main`
   always taggable.
-- **Answer:** 
+- **Answer:** 1
 
 ## Working on the package without releasing it
 
@@ -109,7 +109,10 @@ publishing it".
 
 ## Steps
 
-1. **Merge the work to `main` and confirm CI is green.** Never tag a red build.
+1. **Merge the work to `main` by PR and confirm CI is green on the merge
+   commit.** Development happens on feature branches off `main` (question 2), so
+   there is always a PR to merge; `main` stays taggable between releases. Never
+   tag a red build.
 
 2. **Choose the version and update `__about__.py`.** It is the single source of
    truth — `pyproject.toml` reads it dynamically, and `publish.yml:29-39`
@@ -122,7 +125,8 @@ publishing it".
    | Anything that breaks a caller, including a changed default | minor while 0.x | `0.2.0` → `0.3.0` |
 
    While the package is `0.x`, treat minor as the breaking-change bump. The
-   `events.db` rename in `TODO.md` is exactly this case.
+   `events.db` rename — [plan 007](007-2026-08-15-default-sqlite-filename-rename.md)
+   — is exactly this case.
 
 3. **Update `CHANGELOG.md`.** New section for the version, dated, grouped into
    Added / Changed / Fixed. Users read this to decide whether to upgrade.
@@ -134,7 +138,11 @@ publishing it".
    .\.venv\Scripts\python.exe -m twine check dist/*
    ```
 
-5. **Rehearse on TestPyPI** — only if question 1 says so for this release.
+5. **Rehearse on TestPyPI — only when packaging changed** (question 1):
+   `pyproject.toml`, the build backend, the included files, or the README. New
+   modules under `src/eventlog_pro/` are not a packaging change; the wheel takes
+   the whole package directory, so they ship without any config edit. Skip this
+   step for a pure code release with green CI.
    ```powershell
    .\.venv\Scripts\python.exe -m twine upload --repository testpypi dist/*
    ```
