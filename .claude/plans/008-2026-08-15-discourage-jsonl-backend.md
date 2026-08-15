@@ -201,8 +201,15 @@ Docs-only, so the test suite is a regression check rather than the proof:
 ```powershell
 .\.venv\Scripts\python.exe -m pytest -q
 .\.venv\Scripts\python.exe -m ruff check .
+.\.venv\Scripts\python.exe -m ruff format --check .
 .\.venv\Scripts\python.exe -m mypy --strict src
 ```
+
+`ruff format --check` is the one CI runs and the one this plan originally
+omitted — `ruff check` passes on code the formatter would still rewrite, so
+running only the former misses a red `lint` job. It caught a pre-existing
+failure in `gs_tests/check_event_log.py` inherited from `b7c22d7`, fixed on this
+branch so `main` is taggable again.
 
 All three must be unchanged from before the plan — if `pytest` output moves,
 step 7 changed behaviour and should not have.
