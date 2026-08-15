@@ -7,6 +7,81 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-08-15
+
+### Added
+
+- **A read API: `event_query(**filters) -> list[Event]`.** Backend-agnostic, and
+  the thing 0.1.0 was missing outside Django. Every stored column can be
+  filtered; `created_at`, `from_created_at` and `to_created_at` accept a
+  `datetime` or a `date` (a `date` means the whole UTC day, and `to_created_at`
+  as a `date` means *through the end of* that day); `order_by` takes a field
+  name, `"-field"`, a `(field, direction)` pair, or a sequence of those, where
+  position is sort priority.
+- **A delete API: `delete_events(**filters) -> int`.** The same filters, sharing
+  one implementation, so `event_query()` can preview what a delete removes.
+  Retention is one call: `delete_events(to_created_at=cutoff)`.
+- `Backend.read()` and `Backend.delete()` — non-abstract hooks, so custom
+  backends registered against 0.1.x keep working and raise a clear
+  `BackendError` only if read from. Implemented for `sqlite`, `postgresql`,
+  `mysql`, `django`, `memory` and `null`; `jsonl://` supports reads only.
+- `Event.from_row()`, plus `schema.from_db_datetime()` / `from_db_data()` — the
+  inverse of the write path, which 0.1.0 had no need for. Timestamps always come
+  back tz-aware UTC, and parsing tolerates rows written by Django rather than by
+  this package.
+- Feature documentation at `docs/features/read-api.md`,
+  `docs/features/delete-api.md` and `docs/features/configuration.md`.
+
+### Changed
+
+- **The default SQLite file is now `./eventlog-pro.db`, was `./events.db`.**
+  Only affects callers relying on the default: if you set `EVENTLOG_DSN` or call
+  `configure(dsn=...)`, nothing changes. `events.db` was generic enough to
+  collide with another tool's file in the same directory; the new name matches
+  the package.
+
+  **Your old file is not touched, moved or read.** Events logged after upgrading
+  go to the new file, so an existing `events.db` stops growing. To keep using
+  it, name it explicitly:
+
+  ```python
+  eventlog_pro.configure(dsn="sqlite:///./events.db")   # or EVENTLOG_DSN=sqlite:///./events.db
+  ```
+
+  When the unconfigured fallback fires and an `events.db` is sitting in the same
+  directory, the package now logs a second warning naming it, so the change is
+  not silent. Adopting the old file automatically was rejected: it would make
+  the default depend on directory contents, so two machines running identical
+  code would write to different files.
+
+### Decisions worth knowing
+
+Each of these is a choice, not an oversight.
+
+- **`data=` is a substring match, not equality.** It is the only column argument
+  that does not mean equality. Byte-exact JSON comparison is useless in
+  practice; `data="INV-1234"` finding the event that mentions an invoice is not.
+  Passing a `dict` raises `TypeError` rather than matching nothing.
+  Case-sensitive on SQLite and PostgreSQL, case-insensitive on MySQL — that is
+  the collation's decision, and normalising it would change two backends to fix
+  one.
+- **`event_query()` caps at 100 rows by default; `delete_events()` never caps.**
+  The read cap protects an accidental unfiltered query. The same cap on a delete
+  would make a retention run report success while leaving most rows behind. The
+  cost is that previewing a delete needs `event_query(..., limit=None)`.
+- **`delete_events()` with no filter raises.** `limit` and `order_by` do not
+  count as filters. The `configure(allow_delete=True)` gate discussed in
+  `TODO.md` was deliberately not built; requiring a filter is the guard.
+- **A limited delete is two statements**, not one: `DELETE ... LIMIT` is
+  MySQL-only, so ids are selected and then deleted. A row inserted between the
+  two is not deleted — correct for retention batching, and not a way to delete
+  an exact set atomically.
+- **Neither read nor delete is silenced by `raise_on_error=False`.** That kill
+  switch is for the write path: a dropped log line is survivable, a silently
+  empty read is not.
+- The Django admin's delete permission is unchanged, so `ADMIN_READONLY` still
+  permits deletion there. The two are not yet consistent.
+
 ## [0.1.0] - 2026-08-12
 
 First release. The package is an extraction of the in-repo `eventlog` Django app
@@ -95,5 +170,6 @@ Each of these is a decision, not an accident.
   `from eventlog.utils.eventlog_utilities import log_event` is a one-token edit.
   Scheduled for removal in 1.0.
 
-[Unreleased]: https://github.com/latingate/eventlog-pro/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/latingate/eventlog-pro/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/latingate/eventlog-pro/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/latingate/eventlog-pro/releases/tag/v0.1.0

@@ -10,7 +10,7 @@ Skipped unless ``EVENTLOG_TEST_MYSQL_DSN`` is set::
 from __future__ import annotations
 
 import os
-from datetime import timezone
+from datetime import date, datetime, timezone
 
 import pytest
 
@@ -148,3 +148,63 @@ def test_unreachable_server_is_a_backend_error():
     configure(dsn="mysql://nobody@127.0.0.1:1/none?connect_timeout=1")
     with pytest.raises(BackendError):
         log_event(app="a", category="c", event_code="E")
+
+
+# --------------------------------------------------------------- reading back
+
+
+@pytest.fixture
+def seeded(configured):
+    """Rows inserted with the raw driver, in MySQL's naive-UTC storage format."""
+    get_backend().ensure_schema()
+    rows = [
+        ("2026-08-12 09:00:00.000000", "api", "OLD", "{}"),
+        ("2026-08-13 09:00:00.000000", "api", "MID", "{}"),
+        ("2026-08-14 23:59:59.999999", "web", "NEW", '{"invoice": "INV-1234"}'),
+    ]
+    with configured.cursor() as cursor:
+        for created_at, app, code, data in rows:
+            cursor.execute(
+                f"INSERT INTO {TABLE} (created_at, created_by, app, category, sub_category, "
+                "event_code, event_type, entity_app, entity_model, entity_id, remarks, data) "
+                "VALUES (%s, '', %s, 'webhook', '', %s, '', '', '', '', '', %s)",
+                (created_at, app, code, data),
+            )
+    return configured
+
+
+def test_query_reads_naive_utc_back_as_aware(seeded):
+    events = eventlog_pro.event_query()
+    assert [event.event_code for event in events] == ["NEW", "MID", "OLD"]
+    assert events[0].created_at == datetime(2026, 8, 14, 23, 59, 59, 999999, tzinfo=timezone.utc)
+    assert events[0].created_at.tzinfo is not None
+    assert events[0].data == {"invoice": "INV-1234"}
+
+
+def test_query_filters_and_ranges(seeded):
+    assert [e.event_code for e in eventlog_pro.event_query(app="api")] == ["MID", "OLD"]
+    assert [e.event_code for e in eventlog_pro.event_query(to_created_at=date(2026, 8, 13))] == [
+        "MID",
+        "OLD",
+    ]
+    assert len(eventlog_pro.event_query(to_created_at=date(2026, 8, 14))) == 3
+    assert len(eventlog_pro.event_query(created_at=date(2026, 8, 13))) == 1
+
+
+def test_the_data_filter_casts_json_to_char(seeded):
+    assert [e.event_code for e in eventlog_pro.event_query(data="INV-1234")] == ["NEW"]
+    assert eventlog_pro.event_query(data="INV-9999") == []
+
+
+def test_the_data_filter_still_escapes_wildcards_without_an_escape_clause(seeded):
+    # MySQL gets no `ESCAPE` clause — it would be a syntax error — so this is
+    # what proves its default backslash escape is doing the job.
+    assert eventlog_pro.event_query(data="INV%") == []
+    assert eventlog_pro.event_query(data="INV_1234") == []
+
+
+def test_delete_and_limited_delete(seeded):
+    assert eventlog_pro.delete_events(to_created_at=date(2026, 8, 14), limit=1) == 1
+    assert [e.event_code for e in eventlog_pro.event_query()] == ["NEW", "MID"]
+    assert eventlog_pro.delete_events(app="api") == 1
+    assert [e.event_code for e in eventlog_pro.event_query()] == ["NEW"]

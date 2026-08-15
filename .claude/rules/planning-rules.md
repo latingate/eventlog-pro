@@ -1,5 +1,7 @@
 # Planning Rules
 
+Owner: Gal Sarig ~ Last updated: 15/08/2026
+
 ## Purpose
 
 - Define how plans are created, reviewed, and executed in this repository.
@@ -62,7 +64,7 @@
     - Put a line break between these sub-sections. Do not put empty lines between them.
     - Start `Recommendation:` and `Answer:` with `- `, or Markdown merges them into the last numbered answer. Indent
       wrapped lines by two spaces to keep them in the bullet.
-    - etween the questions – insert 2 line breaks.
+    - Insert 2 line breaks between the questions.
 
 ## Supersession Rule
 

@@ -8,20 +8,13 @@ Nothing here is scheduled. Order within a section is rough priority.
 
 ## Read side
 
-Planned in [`.claude/plans/006-2026-08-14-read-and-delete-api.md`](.claude/plans/006-2026-08-14-read-and-delete-api.md),
-together with the delete API below.
+The read API itself is **done** — `event_query()`, built per
+[`.claude/plans/006-2026-08-14-read-and-delete-api.md`](.claude/plans/006-2026-08-14-read-and-delete-api.md)
+and documented in [`docs/features/read-api.md`](docs/features/read-api.md). What
+it was going to be the foundation for is still open:
 
-0.1.0 is **write-only** outside Django: `Backend` exposes `write`,
-`ensure_schema`, `create_schema`, `ddl` and `close`, and there is no query API,
-no CLI and no viewer. Django users get the admin at
-`/admin/eventlog_pro/eventlog/`; pure-Python users read the table with whatever
-they already use — `psql`, DBeaver, `sqlite3`, or `Get-Content` for `jsonl://`.
-
-- **A read API** — something like `query(app=…, since=…, limit=…) -> list[Event]`,
-  backend-agnostic. This is the foundation the other two need, and the smallest
-  useful piece on its own.
 - **A CLI** — `eventlog-pro tail --dsn … --follow`, via `[project.scripts]`.
-  Useful for ops, and can stay dependency-free.
+  Useful for ops, and can stay dependency-free now that the query layer exists.
 - **A dashboard for pure mode** — the equivalent of the Django admin for people
   not running Django. Needs a server and templates, so it would have to be an
   optional `[web]` extra; the base install must stay dependency-free.
@@ -29,31 +22,42 @@ they already use — `psql`, DBeaver, `sqlite3`, or `Get-Content` for `jsonl://`
 Worth doing only if consumers actually write to SQLite or PostgreSQL *without*
 Django. For `pel-automation` the question is moot — it runs Django.
 
+Smaller things the read API left on the table:
+
+- **No `offset` / pagination and no `count()`.** A caller wanting page two has
+  to raise `limit` and slice. Adding `offset` is easy; deciding whether it
+  should exist without a stable sort guarantee is the actual question.
+- **`data=` is a text scan** with no index behind it, and its case-sensitivity
+  follows the backend's collation (case-insensitive on MySQL, sensitive
+  elsewhere). Structural JSON querying — key lookup, containment, path
+  expressions — is deliberately absent.
+
 ## Delete side
 
-Planned in [`.claude/plans/006-2026-08-14-read-and-delete-api.md`](.claude/plans/006-2026-08-14-read-and-delete-api.md).
-Of the three questions below, that plan adopts the first (require a filter) and
-deliberately leaves the other two — `allow_delete` gating and the admin
-inconsistency — open and unbuilt.
+The delete API is **done** — `delete_events()`, documented in
+[`docs/features/delete-api.md`](docs/features/delete-api.md). Of the three
+things that needed settling first, one was built and two were not:
 
-- **A delete API** — `delete(app=…, before=…, …) -> int`, taking the same
-  filters as the read API above and returning the number of rows removed. Build
-  it on the read API rather than beside it, so one filter implementation serves
-  both and a caller can preview with `query()` exactly what `delete()` will
-  remove. Retention ("drop anything older than 90 days") is the obvious first
-  use.
+- **Require a filter.** Built: a bare `delete_events()` raises, and `limit` /
+  `order_by` do not count as filters.
+- **Opt-in gating.** *Not built.* `configure(allow_delete=True)`, default
+  `False`, so a compromised or careless caller cannot erase history in a
+  deployment that never intended it. Requiring a filter was judged enough for
+  now; this stays available and is purely additive.
+- **The Django admin.** *Unchanged.* `ADMIN_READONLY` still forbids add and
+  change but permits delete, so the admin and the API disagree about how sacred
+  deletion is. Worth making consistent either way.
 
-Three things to settle before writing it, because an audit log that can quietly
-erase itself is a different product from one that cannot:
+Also deferred:
 
-- **Require a filter.** An unfiltered `delete()` that truncates the table is a
-  footgun; make the no-argument case raise rather than delete everything.
-- **Decide whether it is opt-in.** Something like
-  `configure(allow_delete=True)`, default `False`, so a compromised or careless
-  caller cannot erase history in a deployment that never intended it.
-- **Mind the Django admin.** `ADMIN_READONLY` already forbids add and change but
-  permits delete, so deletion is not currently treated as sacred — worth making
-  the two consistent either way.
+- **`delete_events()` for `jsonl://`**, which currently raises. Implementing it
+  means a read-filter-rewrite of the whole file under the existing lock; an
+  interrupted rewrite truncates a log that exists to be shipped elsewhere, which
+  is why it was not built first.
+- **A limited delete is not atomic** — it selects ids and then deletes them,
+  because `DELETE ... LIMIT` is MySQL-only. Fine for retention batching, wrong
+  for "delete exactly this set". Closing that would mean a transaction per
+  backend.
 
 ## Notifications
 
@@ -111,26 +115,18 @@ email as one supplied callback?
 
 ## Defaults and messages
 
-- **Rename the default SQLite file from `events.db` to `eventlog-pro.db`.**
-  `DEFAULT_DSN` is `sqlite:///./events.db` (`config.py:30`), which is generic
-  enough to collide with another tool's file in the same directory; the new name
-  matches the package. Roughly 25 references outside `.venv/`: `config.py:30` and `:191`,
-  `dsn.py:9-10, 100, 148`, `backends/sqlite.py:3`, `__init__.py:8`,
-  `README.md:79, 125, 184, 197`, `ci.yml:184`, six spots in `tests/`, and the
-  historical mentions in plan 001 — leave the plans alone, they record what was
-  true at the time. This changes behaviour for anyone relying on the default, so
-  it belongs in a minor release with a CHANGELOG note, not a patch.
 - **The fallback warning claims it will create a file that may already exist.**
-  Second and later runs print "…which will create C:\…\events.db" about a file
-  it is merely reusing — verified 2026-08-14. `_warn_if_default_dsn`
-  (`config.py:180-192`) fires before the backend is built and never checks for
+  Second and later runs print "…which will create C:\…\eventlog-pro.db" about a
+  file it is merely reusing — verified 2026-08-14. `_warn_if_default_dsn`
+  (`config.py:180-208`) fires before the backend is built and never checks for
   the file. Fix: record whether the path existed, then log after
   `ensure_schema()` succeeds — "created X" or "using the existing X" — so the
   message is accurate in both cases and only appears once the write path
   actually worked. A second "database created" message was considered and
   rejected: one warning per process is already the right amount of noise, and
-  success is observable from the file itself. `tests/test_config.py:99-109`
-  asserts on this text and would need updating.
+  success is observable from the file itself. `tests/test_config.py` asserts on
+  this text and would need updating. Cheaper since 0.2.0: the same function now
+  does an `exists()` check for the legacy `events.db`, so the pattern is there.
 
 ## Housekeeping
 

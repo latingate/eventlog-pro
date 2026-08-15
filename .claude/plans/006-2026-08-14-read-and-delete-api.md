@@ -1,6 +1,6 @@
 # Read and delete APIs (`event_query()` / `delete_events()`)
 
-Status: draft Owner: Gal Sarig Last updated: 2026-08-14
+Created by: Gal Sarig         Last updated: 2026-08-14
 
 The first feature plan since the package shipped. It picks up the `## Read side`
 and `## Delete side` entries of [`TODO.md`](../../TODO.md) — recorded there as deliberate omissions from 0.1.0, not
@@ -8,7 +8,16 @@ defects — and turns them into one piece of work, because the delete API is bui
 than beside it. Releasing what it produces follows the standing checklist in
 [005-2026-08-14-releasing-a-new-version.md](005-2026-08-14-releasing-a-new-version.md).
 
-**All three Open Questions are answered and folded into the design below.** Nothing blocks Step 1.
+**Executed 2026-08-14.** All three Open Questions were answered and built as described. Steps 1–7 are done; step 8
+(the 0.2.0 version bump) is left for whenever the release is actually cut, per plan 005 — the CHANGELOG entry sits
+under `## [Unreleased]` until then.
+
+Two things came out differently from the design below, both discovered while implementing:
+
+- `data=` on the **Django** backend needed `Cast("data", TextField())`. `data__contains` on a `JSONField` means JSON
+  *containment*, not substring, and raises `NotSupportedError` on SQLite.
+- The public functions take **explicit keyword-only parameters** rather than `**filters`, matching how `log_event()`
+  spells its arguments, so IDEs and mypy see the real signature.
 
 ## Context
 

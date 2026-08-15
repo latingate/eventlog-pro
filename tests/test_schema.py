@@ -2,22 +2,28 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 import pytest
 
-from eventlog_pro import ConfigurationError
+from eventlog_pro import BackendError, ConfigurationError
 from eventlog_pro.schema import (
     CHAR_COLUMNS,
     COLUMNS,
     MAX_INDEX_NAME_LENGTH,
     create_table_sql,
     ddl_for,
+    delete_by_ids_sql,
+    delete_sql,
+    from_db_data,
+    from_db_datetime,
     index_name,
     index_statements,
     insert_sql,
     normalize_dialect,
     placeholder,
+    select_ids_sql,
+    select_sql,
     to_db_datetime,
     validate_table_name,
 )
@@ -175,3 +181,151 @@ def test_postgres_keeps_the_aware_value():
 
 def test_naive_input_is_treated_as_utc():
     assert to_db_datetime(datetime(2026, 8, 12, 10, 0), "sqlite") == "2026-08-12 10:00:00"
+
+
+def test_sqlite_timestamps_are_fixed_width_so_range_filters_can_compare_them():
+    """The range filters compare `created_at` as text on SQLite.
+
+    That only works because every stored value is zero-padded to the same
+    width, which makes lexicographic order agree with chronological order. If
+    this ever changes, `from_created_at` / `to_created_at` break silently.
+    """
+    early = to_db_datetime(datetime(2026, 8, 9, 9, 5, 1, 7, tzinfo=timezone.utc), "sqlite")
+    late = to_db_datetime(datetime(2026, 8, 10, 10, 5, 1, 7, tzinfo=timezone.utc), "sqlite")
+    assert early == "2026-08-09 09:05:01.000007"
+    assert len(early) == len(late) and early < late
+
+
+@pytest.mark.parametrize(
+    ("stored", "dialect"),
+    [
+        ("2026-08-12 10:00:00.123456", "sqlite"),
+        ("2026-08-12T10:00:00.123456", "sqlite"),  # written by something else
+        ("2026-08-12 10:00:00.123456+00:00", "sqlite"),
+        ("2026-08-12T10:00:00.123456Z", "jsonl"),
+        (datetime(2026, 8, 12, 10, 0, 0, 123456), "mysql"),
+        (datetime(2026, 8, 12, 10, 0, 0, 123456, tzinfo=timezone.utc), "postgresql"),
+    ],
+)
+def test_created_at_reads_back_as_aware_utc(stored, dialect):
+    parsed = from_db_datetime(stored, dialect)
+    assert parsed == datetime(2026, 8, 12, 10, 0, 0, 123456, tzinfo=timezone.utc)
+    assert parsed.tzinfo is not None
+
+
+def test_a_missing_microsecond_component_still_parses():
+    # Django writes second-resolution timestamps for some backends.
+    assert from_db_datetime("2026-08-12 10:00:00", "sqlite") == datetime(
+        2026, 8, 12, 10, 0, tzinfo=timezone.utc
+    )
+
+
+def test_an_unreadable_timestamp_is_a_backend_error():
+    with pytest.raises(BackendError):
+        from_db_datetime("not a date", "sqlite")
+
+
+def test_data_reads_back_as_a_dict_whatever_the_driver_hands_over():
+    assert from_db_data('{"n": 1}') == {"n": 1}
+    assert from_db_data(b'{"n": 1}') == {"n": 1}
+    assert from_db_data({"n": 1}) == {"n": 1}
+    assert from_db_data(None) == {}
+    assert from_db_data("not json") == "not json"  # a log row is never unreadable
+
+
+# ---------------------------------------------------------------- query SQL
+
+
+def _criteria(**kwargs):
+    from eventlog_pro.criteria import build_criteria
+
+    return build_criteria(**kwargs)
+
+
+def test_select_sql_binds_every_value_and_quotes_every_name():
+    sql, params = select_sql("sqlite", "t", _criteria(app="api", limit=5))
+    assert sql == (
+        'SELECT "id", "created_at", "created_by", "app", "category", "sub_category", '
+        '"event_code", "event_type", "entity_app", "entity_model", "entity_id", '
+        '"remarks", "data" FROM "t" WHERE "app" = ? '
+        'ORDER BY "created_at" DESC, "id" DESC LIMIT 5'
+    )
+    assert params == ("api",)
+
+
+def test_placeholders_follow_the_dialect():
+    sql, _ = select_sql("postgresql", "t", _criteria(app="api"))
+    assert '"app" = %s' in sql
+    sql, _ = select_sql("mysql", "t", _criteria(app="api"))
+    assert "`app` = %s" in sql
+
+
+def test_a_date_range_becomes_gte_and_lt():
+    sql, params = select_sql("sqlite", "t", _criteria(to_created_at=date(2026, 8, 14), limit=None))
+    assert '"created_at" < ?' in sql
+    assert params == ("2026-08-15 00:00:00",)
+
+
+def test_a_datetime_upper_bound_becomes_lte():
+    moment = datetime(2026, 8, 14, 12, 0, tzinfo=timezone.utc)
+    sql, _ = select_sql("sqlite", "t", _criteria(to_created_at=moment, limit=None))
+    assert '"created_at" <= ?' in sql
+
+
+def test_the_data_filter_casts_to_text_per_dialect():
+    criteria = _criteria(data="INV")
+    assert '"data" LIKE ?' in select_sql("sqlite", "t", criteria)[0]
+    assert '"data"::text LIKE %s' in select_sql("postgresql", "t", criteria)[0]
+    assert "CAST(`data` AS CHAR) LIKE %s" in select_sql("mysql", "t", criteria)[0]
+
+
+def test_the_data_filter_escapes_like_wildcards():
+    _sql, params = select_sql("sqlite", "t", _criteria(data="50%_off"))
+    assert params == (r"%50\%\_off%",)
+
+
+def test_mysql_gets_no_escape_clause():
+    """MySQL's default LIKE escape is already backslash, and saying so breaks it.
+
+    MySQL treats backslash as an escape character inside string literals too,
+    so `ESCAPE '\\'` reads as an escaped quote and the statement dies with a
+    1064 syntax error. `ESCAPE '\\\\'` would fix that and then break under
+    NO_BACKSLASH_ESCAPES. Omitting the clause is right in both modes.
+    """
+    criteria = _criteria(data="x")
+    assert "ESCAPE" not in select_sql("mysql", "t", criteria)[0]
+    assert "ESCAPE '\\'" in select_sql("sqlite", "t", criteria)[0]
+    assert "ESCAPE '\\'" in select_sql("postgresql", "t", criteria)[0]
+
+
+def test_delete_sql_has_no_limit_clause():
+    # PostgreSQL has no DELETE ... LIMIT and SQLite is normally built without
+    # it, so a limited delete goes through select_ids_sql instead.
+    sql, params = delete_sql("sqlite", "t", _criteria(app="api", for_delete=True, limit=10))
+    assert sql == 'DELETE FROM "t" WHERE "app" = ?'
+    assert "LIMIT" not in sql
+    assert params == ("api",)
+
+
+def test_select_ids_sql_orders_oldest_first_for_a_limited_delete():
+    sql, _ = select_ids_sql("sqlite", "t", _criteria(app="api", for_delete=True, limit=10))
+    assert sql == (
+        'SELECT "id" FROM "t" WHERE "app" = ? ORDER BY "created_at" ASC, "id" ASC LIMIT 10'
+    )
+
+
+def test_delete_by_ids_sql_binds_one_placeholder_per_id():
+    sql, params = delete_by_ids_sql("sqlite", "t", (1, 2, 3))
+    assert sql == 'DELETE FROM "t" WHERE "id" IN (?, ?, ?)'
+    assert params == (1, 2, 3)
+
+
+def test_an_unfiltered_select_has_no_where_clause():
+    sql, params = select_sql("sqlite", "t", _criteria(limit=None))
+    assert "WHERE" not in sql
+    assert params == ()
+
+
+def test_the_table_name_is_still_validated_on_the_read_path():
+    with pytest.raises(ConfigurationError):
+        select_sql("sqlite", 'x"; DROP TABLE users; --', _criteria())

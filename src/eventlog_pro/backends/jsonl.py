@@ -15,8 +15,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, ClassVar
 
+from ..criteria import Criteria, sort_events
 from ..event import Event
 from ..exceptions import BackendError
+from ..schema import SELECT_COLUMNS, from_db_datetime
 from .base import Backend
 
 __all__ = ["JSONLBackend"]
@@ -57,6 +59,59 @@ class JSONLBackend(Backend):
         except OSError as exc:
             raise BackendError(f"eventlog write to {self.path} failed: {exc}") from exc
         return event
+
+    def read(self, criteria: Criteria) -> list[Event]:
+        """Scan the file, one JSON object per line.
+
+        There is no index and no query language, so this is a full read of the
+        file every time, filtered in Python with the same :class:`Criteria` the
+        SQL backends translate. Unparsable lines are skipped rather than
+        raised on — a half-written last line should not make the whole log
+        unreadable.
+        """
+        events: list[Event] = []
+        try:
+            with self._lock, self.path.open("r", encoding=self.encoding) as handle:
+                for line in handle:
+                    event = self._parse(line)
+                    if event is not None and criteria.matches(event):
+                        events.append(event)
+        except FileNotFoundError:
+            return []
+        except OSError as exc:
+            raise BackendError(f"eventlog query of {self.path} failed: {exc}") from exc
+        ordered = sort_events(events, criteria.order_by)
+        return ordered if criteria.limit is None else ordered[: criteria.limit]
+
+    def delete(self, criteria: Criteria) -> int:
+        """Not supported.
+
+        Deleting would mean rewriting the whole file, and an interrupted
+        rewrite truncates a log that exists to be shipped somewhere else.
+        Rotate the file, or send it to a store that can delete.
+        """
+        raise BackendError(
+            "jsonl:// does not support deleting events: the file is append-only. "
+            "Rotate it instead, or use a SQL backend."
+        )
+
+    def _parse(self, line: str) -> Event | None:
+        line = line.strip()
+        if not line:
+            return None
+        try:
+            payload = json.loads(line)
+        except ValueError:
+            return None
+        if not isinstance(payload, dict):
+            return None
+        created_at = payload.get("created_at")
+        fields: dict[str, Any] = {
+            name: payload.get(name) for name in SELECT_COLUMNS if name != "created_at"
+        }
+        if created_at is not None:
+            fields["created_at"] = from_db_datetime(created_at, "jsonl")
+        return Event(**fields)
 
     def _payload(self, event: Event) -> dict[str, Any]:
         """Field dict with ``created_at`` as an ISO-8601 UTC string."""

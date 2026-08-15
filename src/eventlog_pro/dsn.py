@@ -6,10 +6,10 @@ about shape and strict about nothing except the scheme being present.
 Path conventions follow the SQLAlchemy precedent, which is what people already
 have in their heads::
 
-    sqlite:///./events.db      relative path (three slashes)
-    sqlite:////var/events.db   absolute path (four slashes)
-    sqlite:///C:/tmp/e.db      Windows drive letters work with three
-    sqlite://:memory:          in-memory database (":memory:" also works)
+    sqlite:///./eventlog-pro.db   relative path (three slashes)
+    sqlite:////var/events.db      absolute path (four slashes)
+    sqlite:///C:/tmp/e.db         Windows drive letters work with three
+    sqlite://:memory:             in-memory database (":memory:" also works)
 """
 
 from __future__ import annotations
@@ -97,7 +97,7 @@ def parse_dsn(dsn: str) -> ParsedDSN:
     if not split.scheme:
         raise ConfigurationError(
             f"DSN {redact(dsn)!r} has no scheme. Expected something like "
-            f"'sqlite:///./events.db' or 'postgresql://user:pw@host/db'."
+            f"'sqlite:///./eventlog-pro.db' or 'postgresql://user:pw@host/db'."
         )
 
     scheme, _, driver = split.scheme.lower().partition("+")

@@ -127,6 +127,34 @@ def test_null_dsn_disables_logging_without_erroring():
     assert get_backend().dropped == 1
 
 
+def test_delete_events_refuses_to_run_unfiltered():
+    log_event(app="a", category="c", event_code="E")
+    with pytest.raises(eventlog_pro.ConfigurationError, match="at least one filter"):
+        eventlog_pro.delete_events()
+    assert len(eventlog_pro.event_query()) == 1
+
+
+def test_limit_and_order_by_alone_are_not_a_filter():
+    log_event(app="a", category="c", event_code="E")
+    with pytest.raises(eventlog_pro.ConfigurationError, match="at least one filter"):
+        eventlog_pro.delete_events(limit=1, order_by="created_at")
+
+
+def test_the_kill_switch_does_not_silence_reads():
+    # raise_on_error=False is a write-path switch: a read that quietly returned
+    # [] would hide the failure instead of reporting it.
+    configure(dsn="nope://nowhere", raise_on_error=False)
+    with pytest.raises(eventlog_pro.ConfigurationError):
+        eventlog_pro.event_query(app="a")
+    with pytest.raises(eventlog_pro.ConfigurationError):
+        eventlog_pro.delete_events(app="a")
+
+
+def test_unknown_filter_arguments_are_a_type_error():
+    with pytest.raises(TypeError):
+        eventlog_pro.event_query(nonsense=1)
+
+
 def test_base_exceptions_are_never_swallowed(monkeypatch):
     def explode(self, event):
         raise KeyboardInterrupt

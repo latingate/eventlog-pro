@@ -121,3 +121,73 @@ def test_backend_never_creates_schema():
     backend = get_backend()
     backend.create_schema()  # explicitly a no-op
     assert backend.dialect is None
+
+
+# ---------------------------------------------------------- reading back
+
+
+@pytest.fixture
+def seeded_django():
+    configure(dsn="django://default")
+    for n, app in enumerate(("api", "api", "web")):
+        log_event(
+            app=app,
+            category="c",
+            event_code=f"E{n}",
+            data={"invoice": f"INV-{n}"},
+        )
+    return EventLog.objects.count()
+
+
+def test_query_returns_events_not_model_instances(seeded_django):
+    # The write path's asymmetry is deliberate and is not extended to reads:
+    # a caller iterating results gets Event in both modes.
+    events = eventlog_pro.event_query()
+    assert len(events) == 3
+    assert all(isinstance(event, eventlog_pro.Event) for event in events)
+    assert not any(isinstance(event, EventLog) for event in events)
+
+
+def test_query_reads_created_at_back_tz_aware(seeded_django):
+    assert eventlog_pro.event_query()[0].created_at.tzinfo is not None
+
+
+def test_query_filters_and_orders(seeded_django):
+    assert [e.event_code for e in eventlog_pro.event_query(app="api")] == ["E1", "E0"]
+    assert [e.event_code for e in eventlog_pro.event_query(order_by="event_code")] == [
+        "E0",
+        "E1",
+        "E2",
+    ]
+    assert [e.event_code for e in eventlog_pro.event_query(limit=1, order_by="event_code")] == [
+        "E0"
+    ]
+
+
+def test_the_data_substring_filter_works_on_sqlite(seeded_django):
+    """The `Cast` is load-bearing, and this is what proves it is there.
+
+    `data__contains` on a JSONField means JSON *containment*, not substring,
+    and raises NotSupportedError on SQLite — which is what the Django test
+    settings use. Casting to text first is the only spelling that behaves like
+    the pure-mode backends.
+    """
+    assert [e.event_code for e in eventlog_pro.event_query(data="INV-1")] == ["E1"]
+    assert [e.event_code for e in eventlog_pro.event_query(data="invoice")] == ["E2", "E1", "E0"]
+    assert eventlog_pro.event_query(data="INV-99") == []
+
+
+def test_delete_returns_the_count_and_removes_the_rows(seeded_django):
+    assert eventlog_pro.delete_events(app="api") == 2
+    assert list(EventLog.objects.values_list("event_code", flat=True)) == ["E2"]
+
+
+def test_a_limited_delete_takes_the_oldest_first(seeded_django):
+    assert eventlog_pro.delete_events(category="c", limit=2) == 2
+    assert list(EventLog.objects.values_list("event_code", flat=True)) == ["E2"]
+
+
+def test_deleting_nothing_is_zero(seeded_django):
+    assert eventlog_pro.delete_events(app="nobody") == 0
+    assert eventlog_pro.delete_events(app="nobody", limit=3) == 0
+    assert EventLog.objects.count() == 3

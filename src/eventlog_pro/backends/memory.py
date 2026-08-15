@@ -16,6 +16,7 @@ from __future__ import annotations
 import threading
 from typing import Any, ClassVar
 
+from ..criteria import Criteria, sort_events
 from ..event import Event
 from .base import Backend
 
@@ -45,6 +46,27 @@ class MemoryBackend(Backend):
             if len(self.events) > self.max_events:
                 del self.events[: len(self.events) - self.max_events]
         return event
+
+    def read(self, criteria: Criteria) -> list[Event]:
+        with self._lock:
+            matched = [event for event in self.events if criteria.matches(event)]
+        ordered = sort_events(matched, criteria.order_by)
+        return ordered if criteria.limit is None else ordered[: criteria.limit]
+
+    def delete(self, criteria: Criteria) -> int:
+        with self._lock:
+            if criteria.limit is None:
+                keep = [event for event in self.events if not criteria.matches(event)]
+                removed = len(self.events) - len(keep)
+                self.events[:] = keep
+                return removed
+            # Same rule as the SQL backends: order decides *which* N go.
+            matched = sort_events(
+                [event for event in self.events if criteria.matches(event)], criteria.order_by
+            )[: criteria.limit]
+            doomed = {id(event) for event in matched}
+            self.events[:] = [event for event in self.events if id(event) not in doomed]
+            return len(matched)
 
     def clear(self) -> None:
         """Drop every stored event; ids keep counting up."""

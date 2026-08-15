@@ -1,6 +1,8 @@
 # AGENTS.md — Guidance for AI coding agents
 
-Purpose: Quickly orient an AI coding agent to be productive in this repository (Django project). Focused, actionable
+Owner: Gal Sarig ~ Last updated: 15/08/2026
+
+**Purpose:** Quickly orient an AI coding agent to be productive in this repository (Django project). Focused, actionable
 facts and file references drawn from the code.
 
 ## Planning (REQUIRED)

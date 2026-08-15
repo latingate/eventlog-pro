@@ -21,13 +21,22 @@ from typing import TYPE_CHECKING, Any, ClassVar
 
 from ..event import Event
 from ..exceptions import BackendError
-from ..schema import create_table_sql, index_statements, validate_table_name
+from ..schema import (
+    create_table_sql,
+    delete_by_ids_sql,
+    delete_sql,
+    index_statements,
+    select_ids_sql,
+    select_sql,
+    validate_table_name,
+)
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..config import Settings
+    from ..criteria import Criteria
     from ..dsn import ParsedDSN
 
-__all__ = ["Backend", "ThreadLocalConnectionMixin"]
+__all__ = ["Backend", "ThreadLocalConnectionMixin", "SQLReadDeleteMixin"]
 
 
 class Backend(abc.ABC):
@@ -51,6 +60,18 @@ class Backend(abc.ABC):
     @abc.abstractmethod
     def write(self, event: Event) -> Event:
         """Persist *event*, set its ``id`` where the store has one, return it."""
+
+    # `read` and `delete` are hooks rather than abstract methods on purpose: a
+    # custom backend registered against 0.1.x keeps importing and writing, and
+    # only fails — clearly — if someone tries to read from it.
+
+    def read(self, criteria: Criteria) -> list[Event]:
+        """Every stored event matching *criteria*, in ``criteria.order_by`` order."""
+        raise BackendError(f"{type(self).__name__} does not support reading events.")
+
+    def delete(self, criteria: Criteria) -> int:
+        """Remove every event matching *criteria*; return how many went."""
+        raise BackendError(f"{type(self).__name__} does not support deleting events.")
 
     def ensure_schema(self) -> None:
         """Create the table and indexes once per process, if enabled."""
@@ -155,3 +176,79 @@ class ThreadLocalConnectionMixin:
         for connection in connections:
             with contextlib.suppress(Exception):
                 connection.close()
+
+
+class SQLReadDeleteMixin:
+    """:meth:`~Backend.read` and :meth:`~Backend.delete` for the SQL backends.
+
+    The three of them differ only in how a statement is executed, so they
+    supply :meth:`_query` and :meth:`_modify` and inherit the rest — including
+    the two-statement limited delete, which must not be reimplemented three
+    times.
+    """
+
+    dialect: ClassVar[str | None] = None
+
+    if TYPE_CHECKING:  # pragma: no cover - supplied by Backend / the mixin
+        table: str
+
+        def ensure_schema(self) -> None: ...
+
+        def run(self, operation: Callable[[Any], Any], *, what: str = ...) -> Any: ...
+
+    def _query(self, connection: Any, sql: str, params: tuple[Any, ...]) -> list[Any]:
+        """Run *sql* and return every row.
+
+        The DB-API idiom, which psycopg and PyMySQL both follow. SQLite
+        overrides it: ``sqlite3.Cursor`` is not a context manager, and an
+        in-memory database has to serialise on its shared-connection lock.
+        """
+        with connection.cursor() as cursor:
+            cursor.execute(sql, params)
+            rows: list[Any] = list(cursor.fetchall())
+            return rows
+
+    def _modify(self, connection: Any, sql: str, params: tuple[Any, ...]) -> int:
+        """Run *sql* and return the number of rows it affected."""
+        with connection.cursor() as cursor:
+            cursor.execute(sql, params)
+            return int(cursor.rowcount)
+
+    def read(self, criteria: Criteria) -> list[Event]:
+        self.ensure_schema()
+        dialect = str(self.dialect)
+        sql, params = select_sql(dialect, self.table, criteria)
+
+        def run(connection: Any) -> list[Any]:
+            return self._query(connection, sql, params)
+
+        rows = self.run(run, what="query")
+        return [Event.from_row(row, dialect) for row in rows]
+
+    def delete(self, criteria: Criteria) -> int:
+        self.ensure_schema()
+        dialect = str(self.dialect)
+
+        if criteria.limit is None:
+            sql, params = delete_sql(dialect, self.table, criteria)
+
+            def run_all(connection: Any) -> int:
+                return self._modify(connection, sql, params)
+
+            return int(self.run(run_all, what="delete"))
+
+        # `DELETE ... LIMIT` is MySQL-only, so a limited delete selects the ids
+        # first and deletes those. Both statements run on one connection inside
+        # one `run()`, but they are still two statements: a row inserted
+        # between them is not deleted. That is the right behaviour for
+        # retention batching, and it is documented.
+        ids_sql, ids_params = select_ids_sql(dialect, self.table, criteria)
+
+        def run_limited(connection: Any) -> int:
+            ids = tuple(row[0] for row in self._query(connection, ids_sql, ids_params))
+            if not ids:
+                return 0
+            sql, params = delete_by_ids_sql(dialect, self.table, ids)
+            return self._modify(connection, sql, params)
+
+        return int(self.run(run_limited, what="delete"))

@@ -1,6 +1,6 @@
 """SQLite backend — stdlib only, the default destination.
 
-``sqlite:///./events.db``  ·  ``sqlite:////var/log/events.db``  ·
+``sqlite:///./eventlog-pro.db``  ·  ``sqlite:////var/log/events.db``  ·
 ``sqlite://:memory:``
 
 Query options: ``?table=``, ``?timeout=`` (seconds, default 5),
@@ -18,14 +18,14 @@ from typing import Any, ClassVar
 from ..event import Event
 from ..exceptions import BackendError
 from ..schema import insert_sql
-from .base import Backend, ThreadLocalConnectionMixin
+from .base import Backend, SQLReadDeleteMixin, ThreadLocalConnectionMixin
 
 __all__ = ["SQLiteBackend"]
 
 MEMORY = ":memory:"
 
 
-class SQLiteBackend(ThreadLocalConnectionMixin, Backend):
+class SQLiteBackend(SQLReadDeleteMixin, ThreadLocalConnectionMixin, Backend):
     """Writes events to a SQLite file, or to a shared in-memory database."""
 
     schemes: ClassVar[tuple[str, ...]] = ("sqlite", "sqlite3")
@@ -97,6 +97,18 @@ class SQLiteBackend(ThreadLocalConnectionMixin, Backend):
 
         event.id = self.run(run, what="write")
         return event
+
+    def _query(
+        self, connection: sqlite3.Connection, sql: str, params: tuple[Any, ...]
+    ) -> list[Any]:
+        with self._maybe_shared():
+            return connection.execute(sql, params).fetchall()
+
+    def _modify(self, connection: sqlite3.Connection, sql: str, params: tuple[Any, ...]) -> int:
+        with self._maybe_shared():
+            cursor = connection.execute(sql, params)
+            connection.commit()
+            return int(cursor.rowcount)
 
     def _maybe_shared(self) -> Any:
         """Serialise access when every thread shares one in-memory connection."""
