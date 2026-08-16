@@ -2,7 +2,7 @@
 
 Status: active
 Owner: Gal Sarig
-Last updated: 2026-08-15
+Last updated: 2026-08-16
 
 A standing checklist, not a one-off. Plan 002 released 0.1.0 and is `done`; this
 generalises what worked there so the next release does not have to rediscover
@@ -131,6 +131,27 @@ publishing it".
    `events.db` rename — [plan 007](007-2026-08-15-default-sqlite-filename-rename.md)
    — is exactly this case.
 
+   **Refresh the editable install after the bump.** Run from the repository
+   root, using the venv's pip:
+   ```powershell
+   .\.venv\Scripts\python.exe -m pip install -e ".[dev]"
+   ```
+   An editable install bakes the version into its metadata at install time, so
+   until you re-run this, `importlib.metadata.version("eventlog-pro")` still
+   reports the *old* number while `eventlog_pro.__version__` already reports the
+   new one. The `tests/conftest.py` guard compares the latter against
+   `__about__.py`, so it stays quiet and nothing warns you.
+
+   Re-run it after step 4 as well, and any other time you install a built wheel
+   into this venv — plan 004's consumer smoke test does exactly that. A
+   non-editable install puts a snapshot in `site-packages` that shadows `src/`,
+   and because both copies then report the same version, the guard does not fire.
+   The suite passes having exercised code you are no longer editing. Check with:
+   ```powershell
+   .\.venv\Scripts\python.exe -c "import eventlog_pro; print(eventlog_pro.__file__)"
+   ```
+   It must print a path under `src\`, not under `.venv\Lib\site-packages\`.
+
 3. **Update `CHANGELOG.md`.** Users read this to decide whether to upgrade.
 
    Entries accumulate under `## [Unreleased]` as work merges, so at release
@@ -226,11 +247,12 @@ changes the schema, the Django path in plan 004 step 5 too.
 | A breaking change ships as a patch bump | medium | medium | step 2's table; while 0.x, breaking means a minor bump |
 | `dist/` holds stale artefacts from a previous build | medium | medium | step 4 deletes it first |
 | The version number is silently spent on TestPyPI | medium | low | rehearse deliberately, once — question 1 |
+| A non-editable install shadows `src/`, so the suite tests a snapshot | medium | medium | re-run `pip install -e ".[dev]"` after the bump and after any wheel install — step 2; the `conftest.py` guard cannot catch it once both copies report the same version |
 
 ## Rollout Order
 
 1. Merge and confirm CI green.
-2. Bump `__about__.py`, update `CHANGELOG.md`.
+2. Bump `__about__.py`, refresh the editable install, update `CHANGELOG.md`.
 3. Build and `twine check`; rehearse on TestPyPI if this release warrants it.
 4. Commit, push, tag, push the tag.
 5. Watch the workflow; run the validation above.
