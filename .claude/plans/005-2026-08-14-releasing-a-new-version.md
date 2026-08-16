@@ -81,8 +81,8 @@ publishing it".
 3. **Try it from a consumer's point of view, still without PyPI.** Any of these
    installs unreleased code into another project:
    ```powershell
-   pip install -e C:\Users\gal20\PycharmProjects\eventlog-pro   # editable, tracks your edits
-   pip install C:\Users\gal20\PycharmProjects\eventlog-pro      # a real build of the working tree
+   pip install -e $env:USERPROFILE\PycharmProjects\eventlog-pro   # editable, tracks your edits
+   pip install $env:USERPROFILE\PycharmProjects\eventlog-pro      # a real build of the working tree
    pip install "eventlog-pro @ git+https://github.com/latingate/eventlog-pro@<branch-or-sha>"
    ```
    The git form is the one to use when someone else needs to try your branch —

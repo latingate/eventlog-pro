@@ -23,10 +23,14 @@ and on every run after that, with the file already in place:
     eventlog_pro.configure(dsn=...) to choose a destination.
 """
 
+# Uncomment both of these together to write somewhere other than the default.
+# import eventlog_pro
 from eventlog_pro import log_event
 
 
 def main() -> None:
+    # eventlog_pro.configure(dsn="sqlite:///./test_eventlog_pro.db")
+
     print(
         log_event(
             app="api",
