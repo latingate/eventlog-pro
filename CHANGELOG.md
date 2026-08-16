@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
      Check whether a TestPyPI rehearsal applies (step 5):
      git diff --stat "$(git describe --tags --abbrev=0)..HEAD" -- pyproject.toml README.md -->
 
+## [0.2.3] - 2026-08-16
+
 ### Changed
 
 - **The test suite refuses to run against a stale installed copy.** `src/` is
@@ -254,7 +256,8 @@ Each of these is a decision, not an accident.
   `from eventlog.utils.eventlog_utilities import log_event` is a one-token edit.
   Scheduled for removal in 1.0.
 
-[Unreleased]: https://github.com/latingate/eventlog-pro/compare/v0.2.2...HEAD
+[Unreleased]: https://github.com/latingate/eventlog-pro/compare/v0.2.3...HEAD
+[0.2.3]: https://github.com/latingate/eventlog-pro/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/latingate/eventlog-pro/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/latingate/eventlog-pro/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/latingate/eventlog-pro/compare/v0.1.0...v0.2.0
